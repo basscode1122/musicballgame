@@ -104,7 +104,7 @@
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
   <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
   <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon volgt de hoogte: 1 schermhoogte = ingestelde octaven &middot; Zoom (scrollen / 2 vingers) richt op de plek onder je cursor of vingers; Camera reset = terug naar het midden</div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon = plek op het canvas (midden = A4, 1 schermhoogte = ingestelde octaven) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
   </div>
 </div>
 
@@ -115,7 +115,6 @@
   <div class="row hidden" id="rowAngle"><label for="sAngle">Richting</label><input id="sAngle" type="range" min="0" max="100" value="75"><output id="sAngleV"></output></div>
   <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
   <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
-  <div class="row hidden" id="rowPitch"><label for="sPitch">Starttoon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
   <div class="row hidden" id="rowAtk"><label for="sAtk">Attack</label><input id="sAtk" type="range" min="0" max="100" value="1"><output id="sAtkV"></output></div>
   <div class="row hidden" id="rowDcy"><label for="sDcy">Decay</label><input id="sDcy" type="range" min="0" max="100" value="51"><output id="sDcyV"></output></div>
   <div class="row hidden" id="rowRel"><label for="sRel">Release</label><input id="sRel" type="range" min="0" max="100" value="61"><output id="sRelV"></output></div>
@@ -153,12 +152,18 @@
      (0,05 tot 2,0: boven 1,0 versnellen ballen!)
    - globale toonladder (5 standaard ladders op een instelbare grondtoon),
      alles blijft consonant
-   - de toonhoogte volgt de hoogte op het canvas: een spawner geeft alleen
-     de starttoon mee, en 1 zichtbare schermhoogte = het ingestelde
-     aantal octaven (Instellingen, standaard 4, 2 t/m 6)
-   - zoomen richt op de plek onder je cursor of vingers (scrollen of
-     2 vingers), niet altijd op het midden; met Camera reset in
-     Instellingen ga je terug naar de beginpositie
+   - de toonhoogte is ABSOLUUT: volledig bepaald door de plek op het
+     canvas (midden van het veld = A4 = 440 Hz = midden van de piano);
+     1 zichtbare schermhoogte = het ingestelde aantal octaven
+     (Instellingen, standaard 4, 2 t/m 6), gekwantiseerd op de ladder
+   - de camera draait niet meer rond (vaste kijkhoek): je kunt alleen
+     in- en uitzoomen, richt op de plek onder je cursor of vingers
+     (scrollen of 2 vingers); met Camera reset ga je terug naar het
+     midden
+   - botsingen buiten beeld klinken zachter als je inzoomt (max -8 dB
+     bij volledig ingezoomd, 0 dB volledig uitgezoomd, vloeiend ertussen)
+   - elke toon pant mee met de plek van de botsing op het scherm,
+     maximaal 75% links of rechts
    - alles wat botst maakt geluid via een ADR-synth (WebAudio),
      met master-compressor tegen clipping (kraak); de ADR-envelope
      is per spawner instelbaar (standaardwaarden in Instellingen)
@@ -392,11 +397,11 @@ function noteNameFromFreq(f) {
 /* ---- toonladders: 5 standaard ladders op een instelbare grondtoon ----
  * De ladder is GLOBAAL: spawners, ballen en muur-bounces volgen allemaal
  * dezelfde (alle noten over de hele machine blijven consonant). Bij
- * wisselen van ladder of grondtoon blijft de trap-index van elke noot
- * gelijk (noot "nummer 10" blijft nummer 10, de toonhoogte verandert).
- * De toonhoogte van een bal volgt de hoogte op het canvas: de spawner
- * geeft alleen de starttoon mee, en 1 zichtbare schermhoogte = `octaves`
- * octaven (instelbaar in Instellingen, standaard 4). */
+ * wisselen van ladder of grondtoon klikt de positieschaal op de nieuwe
+ * ladder (zelfde hoogte = dichtstbijzijnde trap).
+ * De toonhoogte van een bal is ABSOLUUT: volledig bepaald door de plek
+ * op het canvas (midden van het veld = A4 = 440 Hz = midden van de
+ * piano), 1 zichtbare schermhoogte = `octaves` octaven. */
 const SCALES = [
   { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
   { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
@@ -429,12 +434,18 @@ function ladderIndexBelow(f, sIdx, root) {
   for (let j = 0; j < sc.semi.length; j++) if (sc.semi[j] <= s % 12) k = j;
   return Math.min(ladderMax(sIdx), o * sc.semi.length + k);
 }
-/* standaardnoot voor spawner n: 10 trappen vanaf A3 (220 Hz) omhoog */
-function defaultNote(n) { return ladderFreq(ladderIndexBelow(220) + ((n - 1) % 10)); }
-/* hoogte op het canvas = toonhoogte: de spawner geeft alleen de starttoon
- * mee (y0/startF bij het spawnen); daarna verschuift de toon met de hoogte.
- * 1 zichtbare schermhoogte (op het speelvlak) = `octaves` octaven; de
- * doeltoon wordt op de dichtstbijzijnde ladder-trap gekwantiseerd. */
+/* ---- hoogte op het canvas = toonhoogte, ABSOLUUT ----
+ * De toon van een bal wordt volledig bepaald door de plek op het canvas
+ * (geen relatieve starttoon meer): het midden van het veld (y = CENTER_Y)
+ * is het midden van de piano (A4 = 440 Hz, precies de middelste trede van
+ * de ladder A1..A7), en 1 zichtbare schermhoogte = `octaves` octaven
+ * (Instellingen, standaard 4, 2 t/m 6). De doeltoon wordt op de
+ * dichtstbijzijnde ladder-trap gekwantiseerd. Spawners tactisch plaatsen
+ * is dus belangrijk: hoger op het canvas = hogere toon. */
+const MID_F = 440;   // A4: midden van de piano = midden van de ladder
+function posPitch(y) {
+  return ladderNearest(Math.max(ladderFreq(0), MID_F * Math.pow(2, (y - CENTER[1]) / visibleH() * octaves)));
+}
 function ladderNearest(f) {
   const i = ladderIndexBelow(f);
   if (i >= ladderMax()) return ladderFreq(ladderMax());
@@ -442,26 +453,18 @@ function ladderNearest(f) {
   return f / f0 < f1 / f ? f0 : f1;              // log-helft: dichtstbijzijnde
 }
 function visibleH() { return 2 * Math.max(0.5, Math.abs(eye[2])) * TANH; }
-function heightPitch(b) {
-  const shift = (b.y - b.y0) / visibleH() * octaves;
-  return ladderNearest(Math.max(ladderFreq(0), b.startF * Math.pow(2, shift)));
-}
 function setScale(idx) {
   const oldIdx = scaleIdx;
   scaleIdx = Math.max(0, Math.min(SCALES.length - 1, idx | 0));
   if (oldIdx === scaleIdx) return;
-  // alle bestaande noten remappen: trap-index blijft gelijk
-  for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, oldIdx), ladderMax()));
-  for (const b of balls) if (b.active) b.startF = ladderFreq(Math.min(ladderIndexBelow(b.startF, oldIdx), ladderMax()));
+  // geen remap nodig: de toon wordt live uit de positie + ladder berekend
   syncSelPanel();
 }
 function setRoot(semi) {
   const oldRoot = rootSemi;
   rootSemi = Math.max(0, Math.min(11, semi | 0));
   if (oldRoot === rootSemi) return;
-  // alle bestaande noten remappen: trap-index blijft gelijk
-  for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, undefined, oldRoot), ladderMax()));
-  for (const b of balls) if (b.active) b.startF = ladderFreq(Math.min(ladderIndexBelow(b.startF, undefined, oldRoot), ladderMax()));
+  // geen remap nodig: de toon wordt live uit de positie + ladder berekend
   syncSelPanel();
 }
 
@@ -549,7 +552,7 @@ function addSpawner(x, y) {
       { en: false, r: 0.5, i: 1.0 }
     ] },
     hue: (idx * 137.5) % 360,
-    note: defaultNote(idx),
+    note: posPitch(y),          // toonhoogte = plek op het canvas (basis voor samples)
     // ADR-envelope per spawner (begint op de globale standaard uit Instellingen)
     atk: synth.attack, dcy: synth.decay, rel: synth.release
   };
@@ -632,8 +635,19 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   const rel = Math.max(0.001, sp && sp.rel !== undefined ? sp.rel : synth.release);
 
   const gain = audioCtx.createGain();
+  // panning: het geluid volgt de plek van de botsing op het scherm,
+  // maximaal 75% naar links of rechts (geen hard panning)
+  let outNode = masterBus;
+  if (typeof audioCtx.createStereoPanner === "function") {
+    const panNode = audioCtx.createStereoPanner();
+    const nd = ndcOf(ball.x, ball.y);
+    panNode.pan.value = nd === null ? 0 : Math.max(-0.75, Math.min(0.75, nd[0]));
+    panNode.connect(masterBus);
+    outNode = panNode;
+  }
   const velGain = Math.pow(10, synth.velDepthDb * (1 - vel) / 20);
-  const peak = BASE_LEVEL * velGain * MASTER * vol;   // volume per spawner
+  // volume per spawner, gedempt als de botsing buiten beeld is (zoom-afhankelijk)
+  const peak = BASE_LEVEL * velGain * MASTER * vol * offscreenAtten(ball.x, ball.y);
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.linearRampToValueAtTime(peak, t + atk);
   gain.gain.setTargetAtTime(SUSTAIN * peak, t + atk, dcy);
@@ -656,7 +670,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
     const dur = sample.data.length / (sample.sr || audioCtx.sampleRate);
     const off = Math.min((sample.start || 0) * dur, Math.max(0, dur - 0.01));
     src.connect(gain);
-    gain.connect(masterBus);              // via de compressor-bus: geen kraak
+    gain.connect(outNode);                 // via panner + compressor-bus: geen kraak
     src.start(t, off); src.stop(stop);
     return;
   }
@@ -692,7 +706,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
 
   osc.connect(gain);
   osc2.connect(gain2); gain2.connect(gain);
-  gain.connect(masterBus);              // via de compressor-bus: geen kraak
+  gain.connect(outNode);                   // via panner + compressor-bus: geen kraak
   osc.start(t); osc.stop(stop);
   osc2.start(t); osc2.stop(stop);
 }
@@ -716,9 +730,7 @@ function spawnBall(sp) {
   slot.vy = sp.speed * Math.sin(a);
   slot.r = sp.size;
   slot.hue = sp.hue;
-  slot.note = sp.note;                        // compat: beginwaarde
-  slot.startF = sp.note;                      // starttoon (hoogte neemt het daarna over)
-  slot.y0 = sp.y;
+  slot.note = posPitch(slot.y);                // toon = plek op het canvas (absolute schaal)
   slot.wave = sp.wave;
   slot.vol = sp.vol;
   slot.spId = sp.id;
@@ -742,9 +754,7 @@ function resetPersistent() {
     b.vy = 0;
     b.r = 0.6;
     b.hue = (i * 137.5) % 360;
-    b.note = defaultNote(i + 1);
-    b.startF = b.note;                        // starttoon; hoogte neemt het daarna over
-    b.y0 = b.y;
+    b.note = posPitch(b.y);                    // toon = plek op het canvas (absolute schaal)
     b.wave = 0;
     b.vol = 1;
     b.spId = 0;
@@ -785,9 +795,9 @@ function collideBallWall(b, w, dt) {
     b.vy = ty * vt + ny * vnAfter;
     b.spin = vt / b.r * 57.2958;                           // rollen
     if (impact > MIN_TONE_SPEED) {
-      // toonhoogte volgt de hoogte op het canvas (de spawner geeft alleen de
-      // starttoon mee); de 0.5 maakt de muurhit een octaaf lager
-      collisionTone(impact, heightPitch(b), 0.5, b);
+      // toonhoogte = absolute plek op het canvas (midden = A4);
+      // de 0,5 maakt de muurhit een octaaf lager
+      collisionTone(impact, posPitch(b.y), 0.5, b);
     }
     if (impact > MIN_FLASH_SPEED) b.flash = Math.min(1, 0.3 + impact * 0.12);
   }
@@ -830,7 +840,9 @@ function stepPhysics(dt) {
 }
 
 /* ------------------------------------------------- camera + projectie */
-const cam = { azimuth: 0.35, elevation: 0.18, distance: 17 };
+// vaste kijkhoek (geen rond Draaien meer: alleen in- en uitzoomen)
+const CAM_AZ = 0.35, CAM_EL = 0.18;
+const cam = { distance: 17 };
 const camTarget = [0, 1.2, 0];   // waar de camera naar kijkt (zoom-mikpunt)
 let camAxis = null, eye = [0, 0, 17];
 const TANH = Math.tan(25 * Math.PI / 180);
@@ -852,8 +864,7 @@ function zoomAt(clientX, clientY, k) {
   zoomAtWorld(planePoint(clientX, clientY), k);
 }
 function resetCam() {
-  camTarget[0] = CENTER[0]; camTarget[1] = CENTER[1];
-  cam.azimuth = 0.35; cam.elevation = 0.18; cam.distance = 17;
+  camTarget[0] = CENTER[0]; camTarget[1] = CENTER[1]; cam.distance = 17;
 }
 
 function planePoint(clientX, clientY) {
@@ -872,6 +883,34 @@ function planePoint(clientX, clientY) {
   const t = -eye[2] / d[2];
   if (t <= 0.1) return null;
   return [eye[0] + d[0] * t, eye[1] + d[1] * t];
+}
+
+/* Genormaliseerde schermpositie (NDC) van een punt op het speelvlak:
+ * [x, y] met -1..1 = binnen beeld; null = achter de camera. */
+function ndcOf(x, y) {
+  if (!camAxis) return null;
+  const vx = x - eye[0], vy = y - eye[1], vz = -eye[2];
+  const w = -(vx * camAxis.z[0] + vy * camAxis.z[1] + vz * camAxis.z[2]);   // kijkdiepte
+  if (w <= 0.1) return null;
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const cx = vx * camAxis.x[0] + vy * camAxis.x[1] + vz * camAxis.x[2];
+  const cy = vx * camAxis.y[0] + vy * camAxis.y[1] + vz * camAxis.y[2];
+  return [cx / (w * TANH * aspect), cy / (w * TANH)];
+}
+
+/* Buiten-beeld-demping: hoe verder je inzoomt, hoe zachter botsingen
+ * klinken die je niet meer ziet (volledig uitgezoomd = 0 dB verschil,
+ * volledig ingezoomd = -8 dB). Schaalt logaritmisch mee met de zoom en
+ * vloeiend over de beeldrand (15% NDC fade-zone). */
+const OFFSCREEN_DB = 8;
+function offscreenAtten(x, y) {
+  if (!camAxis) return 1;
+  const nd = ndcOf(x, y);
+  const out = nd === null ? Infinity : Math.max(Math.abs(nd[0]), Math.abs(nd[1]));
+  const edge = Math.max(0, Math.min(1, (out - 1) / 0.15));   // 0 in beeld, 1 buiten
+  const zoomFrac = Math.log(CAM_MAX_DIST / cam.distance) / Math.log(CAM_MAX_DIST / CAM_MIN_DIST);
+  const db = -OFFSCREEN_DB * edge * zoomFrac;
+  return Math.pow(10, db / 20);
 }
 
 /* ------------------------------------------------- input & modi */
@@ -933,7 +972,6 @@ canvas.addEventListener("pointerdown", (e) => {
     gesture = {
       kind: "pinch",
       dist: Math.hypot(p1.x - p2.x, p1.y - p2.y),
-      mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2,
       zoomPt: planePoint((p1.x + p2.x) / 2, (p1.y + p2.y) / 2)   // zoom naar deze plek
     };
   } else if (pointers.size === 1) {
@@ -978,10 +1016,6 @@ canvas.addEventListener("pointermove", (e) => {
     const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
     if (gesture.dist > 1) zoomAtWorld(gesture.zoomPt, gesture.dist / d);
     gesture.dist = d;
-    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-    cam.azimuth -= (mx - gesture.mx) * 0.008;
-    cam.elevation = Math.max(-1.45, Math.min(1.45, cam.elevation + (my - gesture.my) * 0.008));
-    gesture.mx = mx; gesture.my = my;
   } else if (gesture.kind === "wall") {
     const p = planePoint(e.clientX, e.clientY);
     if (p && dragWall) { dragWall.x1 = p[0]; dragWall.y1 = p[1]; }
@@ -994,12 +1028,11 @@ canvas.addEventListener("pointermove", (e) => {
       gesture.last = p;
     }
   } else if (gesture.kind === "spawnerGesture") {
+    // slepen = lang-indrukken afbreken (de camera draait niet meer rond)
     const dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
     if (Math.hypot(dx, dy) > 12) {
       gesture.moved = true;
       clearTimeout(gesture.timer);
-      cam.azimuth -= e.movementX * 0.008;
-      cam.elevation = Math.max(-1.45, Math.min(1.45, cam.elevation + e.movementY * 0.008));
     }
   }
 });
@@ -1008,7 +1041,7 @@ function endPointer(e) {
   pointers.delete(e.pointerId);
   const g = gesture;
   if (pointers.size > 0) {
-    if (g && g.kind === "pinch" && pointers.size === 1) gesture = { kind: "orbit" };
+    if (g && g.kind === "pinch" && pointers.size === 1) gesture = null;
     return;
   }
   gesture = null;
@@ -1157,7 +1190,7 @@ function syncSelPanel() {
   $("delBtn").classList.remove("hidden");
   if (selected.kind === "spawner") {
     $("selTitle").textContent = "Spawner " + selected.id;
-    ["rowInt", "rowSize", "rowAngle", "rowSpeed", "rowVolume", "rowPitch", "rowAtk", "rowDcy", "rowRel"]
+    ["rowInt", "rowSize", "rowAngle", "rowSpeed", "rowVolume", "rowAtk", "rowDcy", "rowRel"]
       .forEach(id => $(id).classList.remove("hidden"));
     $("rowBounce").classList.add("hidden");
     setSlider($("sInt"), Math.round(100 * Math.log(obj.interval / 0.25) / Math.log(20)));
@@ -1165,7 +1198,6 @@ function syncSelPanel() {
     setSlider($("sAngle"), Math.round(obj.angle / 3.6));
     setSlider($("sSpeed"), Math.round(obj.speed / 0.2));
     setSlider($("sVolume"), Math.round(obj.vol * 100));
-    setSlider($("sPitch"), Math.round(ladderIndexBelow(obj.note) / ladderMax() * 100));
     setSlider($("sAtk"), Math.round(obj.atk * 1000 / 2));
     setSlider($("sDcy"), Math.round(100 * Math.log(obj.dcy / 0.01) / Math.log(200)));
     setSlider($("sRel"), Math.round(100 * Math.log(obj.rel / 0.01) / Math.log(200)));
@@ -1174,7 +1206,6 @@ function syncSelPanel() {
     $("sAngleV").textContent = Math.round(obj.angle) + "°";
     $("sSpeedV").textContent = obj.speed.toFixed(1);
     $("sVolumeV").textContent = Math.round(obj.vol * 100) + "%";
-    $("sPitchV").textContent = noteNameFromFreq(obj.note) + " · " + Math.round(obj.note) + " Hz";
     $("sAtkV").textContent = fmtTime(obj.atk);
     $("sDcyV").textContent = fmtTime(obj.dcy);
     $("sRelV").textContent = fmtTime(obj.rel);
@@ -1223,7 +1254,6 @@ function syncSelPanel() {
     $("rowAngle").classList.add("hidden");
     $("rowSpeed").classList.add("hidden");
     $("rowVolume").classList.add("hidden");
-    $("rowPitch").classList.add("hidden");
     $("rowAtk").classList.add("hidden");
     $("rowDcy").classList.add("hidden");
     $("rowRel").classList.add("hidden");
@@ -1264,13 +1294,6 @@ $("sVolume").addEventListener("input", e => {
   const obj = selected && findSelected(selected.kind, selected.id);
   if (obj) obj.vol = +e.target.value / 100;            // 0..1
   $("sVolumeV").textContent = Math.round((obj ? obj.vol : 1) * 100) + "%";
-});
-$("sPitch").addEventListener("input", e => {
-  if (syncing) return;
-  const obj = selected && findSelected(selected.kind, selected.id);
-  if (obj) obj.note = ladderFreq(Math.round(+e.target.value * ladderMax() / 100));
-  $("sPitchV").textContent =
-    noteNameFromFreq(obj ? obj.note : 440) + " · " + Math.round(obj ? obj.note : 440) + " Hz";
 });
 // ADR per spawner: attack 0..2 ms-bereik, decay/release 10 ms..2 s logaritmisch
 $("sAtk").addEventListener("input", e => {
@@ -1523,7 +1546,7 @@ function serializeWorld() {
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
-      speed: sp.speed, vol: sp.vol, note: sp.note,
+      speed: sp.speed, vol: sp.vol,
       wave: Math.max(0, Math.min(3, sp.wave | 0)), mode: sp.mode,
       atk: +sp.atk.toFixed(4), dcy: +sp.dcy.toFixed(4), rel: +sp.rel.toFixed(4),
       fm: { on: sp.fm.on ? 1 : 0, m: sp.fm.mods.map(m => [m.en ? 1 : 0, +m.r.toFixed(3), +m.i.toFixed(2)]) },
@@ -1533,7 +1556,7 @@ function serializeWorld() {
       x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest
     })),
     cnt: persistentCount,
-    cam: { az: cam.azimuth, el: cam.elevation, dist: cam.distance,
+    cam: { dist: cam.distance,
            tx: +camTarget[0].toFixed(3), ty: +camTarget[1].toFixed(3) },
     synth: { attack: synth.attack, decay: synth.decay, release: synth.release, velDb: synth.velDepthDb }
   });
@@ -1551,7 +1574,7 @@ function applyWorld(o) {
   for (const s of (o.spawners || [])) {
     const sp = addSpawner(s.x, s.y);
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
-    sp.speed = s.speed; sp.vol = s.vol; sp.note = s.note;
+    sp.speed = s.speed; sp.vol = s.vol;   // note = plek op het canvas (wordt live berekend)
     sp.wave = (s.wave | 0) === 4 ? 0 : Math.max(0, Math.min(3, s.wave | 0));   // oude golf 4 = Sample -> sinus
     // ADR per spawner (oudere opslag zonder ADR = de globale standaard)
     sp.atk = s.atk !== undefined ? s.atk : synth.attack;
@@ -1577,7 +1600,8 @@ function applyWorld(o) {
     resetPersistent();   // ballen vallen direct weer met de geladen hoeveelheid
   }
   if (o.cam) {
-    cam.azimuth = o.cam.az; cam.elevation = o.cam.el;
+    // vaste kijkhoek: alleen afstand + zoom-mikpunt (oude opslag met az/el
+    // laadt gewoon, die hoeken worden genegeerd)
     cam.distance = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, o.cam.dist));
     // mikpunt herstellen (oude opslag zonder tx/ty = gewoon het midden)
     camTarget[0] = Math.max(-150, Math.min(150, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
@@ -1690,11 +1714,11 @@ function frame() {
     canvas.height = Math.floor(innerHeight * dpr);
   }
 
-  // camera (kijkt naar camTarget: na punt-zoomen staat dat niet meer op 0)
+  // camera (kijkt naar camTarget; vaste kijkhoek, geen rond draaien)
   eye = [
-    camTarget[0] + cam.distance * Math.cos(cam.elevation) * Math.sin(cam.azimuth),
-    camTarget[1] + cam.distance * Math.sin(cam.elevation),
-    camTarget[2] + cam.distance * Math.cos(cam.elevation) * Math.cos(cam.azimuth)
+    camTarget[0] + cam.distance * Math.cos(CAM_EL) * Math.sin(CAM_AZ),
+    camTarget[1] + cam.distance * Math.sin(CAM_EL),
+    camTarget[2] + cam.distance * Math.cos(CAM_EL) * Math.cos(CAM_AZ)
   ];
   camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
   view = mat4View(camAxis, eye);
