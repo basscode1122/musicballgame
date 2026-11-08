@@ -102,7 +102,8 @@
   <div class="row"><label for="vel">Velocity</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV"></output></div>
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
   <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon</div>
+  <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon volgt de hoogte: 1 schermhoogte = ingestelde octaven</div>
   </div>
 </div>
 
@@ -113,7 +114,7 @@
   <div class="row hidden" id="rowAngle"><label for="sAngle">Richting</label><input id="sAngle" type="range" min="0" max="100" value="75"><output id="sAngleV"></output></div>
   <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
   <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
-  <div class="row hidden" id="rowPitch"><label for="sPitch">Toon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
+  <div class="row hidden" id="rowPitch"><label for="sPitch">Starttoon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
   <div class="row hidden" id="rowAtk"><label for="sAtk">Attack</label><input id="sAtk" type="range" min="0" max="100" value="1"><output id="sAtkV"></output></div>
   <div class="row hidden" id="rowDcy"><label for="sDcy">Decay</label><input id="sDcy" type="range" min="0" max="100" value="51"><output id="sDcyV"></output></div>
   <div class="row hidden" id="rowRel"><label for="sRel">Release</label><input id="sRel" type="range" min="0" max="100" value="61"><output id="sRelV"></output></div>
@@ -151,6 +152,9 @@
      (0,05 tot 2,0: boven 1,0 versnellen ballen!)
    - globale toonladder (5 standaard ladders op een instelbare grondtoon),
      alles blijft consonant
+   - de toonhoogte volgt de hoogte op het canvas: een spawner geeft alleen
+     de starttoon mee, en 1 zichtbare schermhoogte = het ingestelde
+     aantal octaven (Instellingen, standaard 4, 2 t/m 6)
    - alles wat botst maakt geluid via een ADR-synth (WebAudio),
      met master-compressor tegen clipping (kraak); de ADR-envelope
      is per spawner instelbaar (standaardwaarden in Instellingen)
@@ -385,7 +389,10 @@ function noteNameFromFreq(f) {
  * De ladder is GLOBAAL: spawners, ballen en muur-bounces volgen allemaal
  * dezelfde (alle noten over de hele machine blijven consonant). Bij
  * wisselen van ladder of grondtoon blijft de trap-index van elke noot
- * gelijk (noot "nummer 10" blijft nummer 10, de toonhoogte verandert). */
+ * gelijk (noot "nummer 10" blijft nummer 10, de toonhoogte verandert).
+ * De toonhoogte van een bal volgt de hoogte op het canvas: de spawner
+ * geeft alleen de starttoon mee, en 1 zichtbare schermhoogte = `octaves`
+ * octaven (instelbaar in Instellingen, standaard 4). */
 const SCALES = [
   { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
   { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
@@ -395,6 +402,7 @@ const SCALES = [
 ];
 let scaleIdx = 0;
 let rootSemi = 0;         // grondtoon: 0 = A, 1 = A#, ..., 11 = G#
+let octaves = 4;          // hoogte-op-Canvas: 1 zichtbare schermhoogte = dit aantal octaven
 function rootName() { return NOTE_NAMES[(9 + rootSemi) % 12]; }
 function ladderFreq(i, sIdx, root) {
   const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
@@ -417,17 +425,30 @@ function ladderIndexBelow(f, sIdx, root) {
   for (let j = 0; j < sc.semi.length; j++) if (sc.semi[j] <= s % 12) k = j;
   return Math.min(ladderMax(sIdx), o * sc.semi.length + k);
 }
-/* bij elke muurbounce 1 trap op de ladder naar beneden (onder de grondtoon geklemd) */
-function ladderStepDown(f) { return ladderFreq(Math.max(0, ladderIndexBelow(f) - 1)); }
 /* standaardnoot voor spawner n: 10 trappen vanaf A3 (220 Hz) omhoog */
 function defaultNote(n) { return ladderFreq(ladderIndexBelow(220) + ((n - 1) % 10)); }
+/* hoogte op het canvas = toonhoogte: de spawner geeft alleen de starttoon
+ * mee (y0/startF bij het spawnen); daarna verschuift de toon met de hoogte.
+ * 1 zichtbare schermhoogte (op het speelvlak) = `octaves` octaven; de
+ * doeltoon wordt op de dichtstbijzijnde ladder-trap gekwantiseerd. */
+function ladderNearest(f) {
+  const i = ladderIndexBelow(f);
+  if (i >= ladderMax()) return ladderFreq(ladderMax());
+  const f0 = ladderFreq(i), f1 = ladderFreq(i + 1);
+  return f / f0 < f1 / f ? f0 : f1;              // log-helft: dichtstbijzijnde
+}
+function visibleH() { return 2 * Math.max(0.5, Math.abs(eye[2])) * TANH; }
+function heightPitch(b) {
+  const shift = (b.y - b.y0) / visibleH() * octaves;
+  return ladderNearest(Math.max(ladderFreq(0), b.startF * Math.pow(2, shift)));
+}
 function setScale(idx) {
   const oldIdx = scaleIdx;
   scaleIdx = Math.max(0, Math.min(SCALES.length - 1, idx | 0));
   if (oldIdx === scaleIdx) return;
   // alle bestaande noten remappen: trap-index blijft gelijk
   for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, oldIdx), ladderMax()));
-  for (const b of balls) if (b.active) b.note = ladderFreq(Math.min(ladderIndexBelow(b.note, oldIdx), ladderMax()));
+  for (const b of balls) if (b.active) b.startF = ladderFreq(Math.min(ladderIndexBelow(b.startF, oldIdx), ladderMax()));
   syncSelPanel();
 }
 function setRoot(semi) {
@@ -436,7 +457,7 @@ function setRoot(semi) {
   if (oldRoot === rootSemi) return;
   // alle bestaande noten remappen: trap-index blijft gelijk
   for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, undefined, oldRoot), ladderMax()));
-  for (const b of balls) if (b.active) b.note = ladderFreq(Math.min(ladderIndexBelow(b.note, undefined, oldRoot), ladderMax()));
+  for (const b of balls) if (b.active) b.startF = ladderFreq(Math.min(ladderIndexBelow(b.startF, undefined, oldRoot), ladderMax()));
   syncSelPanel();
 }
 
@@ -691,7 +712,9 @@ function spawnBall(sp) {
   slot.vy = sp.speed * Math.sin(a);
   slot.r = sp.size;
   slot.hue = sp.hue;
-  slot.note = sp.note;
+  slot.note = sp.note;                        // compat: beginwaarde
+  slot.startF = sp.note;                      // starttoon (hoogte neemt het daarna over)
+  slot.y0 = sp.y;
   slot.wave = sp.wave;
   slot.vol = sp.vol;
   slot.spId = sp.id;
@@ -716,6 +739,8 @@ function resetPersistent() {
     b.r = 0.6;
     b.hue = (i * 137.5) % 360;
     b.note = defaultNote(i + 1);
+    b.startF = b.note;                        // starttoon; hoogte neemt het daarna over
+    b.y0 = b.y;
     b.wave = 0;
     b.vol = 1;
     b.spId = 0;
@@ -756,8 +781,9 @@ function collideBallWall(b, w, dt) {
     b.vy = ty * vt + ny * vnAfter;
     b.spin = vt / b.r * 57.2958;                           // rollen
     if (impact > MIN_TONE_SPEED) {
-      collisionTone(impact, b.note, 0.5, b);      // muur = octaaf lager
-      b.note = ladderStepDown(b.note);            // per muurhit 1 trap op de ladder lager
+      // toonhoogte volgt de hoogte op het canvas (de spawner geeft alleen de
+      // starttoon mee); de 0.5 maakt de muurhit een octaaf lager
+      collisionTone(impact, heightPitch(b), 0.5, b);
     }
     if (impact > MIN_FLASH_SPEED) b.flash = Math.min(1, 0.3 + impact * 0.12);
   }
@@ -1024,6 +1050,11 @@ bind("vel", "velV", p => {
 // globale toonladder (5 standaard ladders) + grondtoon
 bind("scale", "scaleV", p => { setScale(+p); return SCALES[scaleIdx].name; });
 bind("root", "rootV", p => { setRoot(+p); return rootName(); });
+// hoogte-op-Canvas: aantal octaven per zichtbare schermhoogte (2 t/m 6)
+bind("oct", "octV", p => {
+  octaves = Math.max(2, Math.min(6, Math.round(+p)));
+  return octaves + " octaven";
+});
 
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
   $(id).addEventListener("click", () => {
@@ -1461,6 +1492,7 @@ function serializeWorld() {
     v: 3,
     scale: scaleIdx,
     root: rootSemi,
+    oct: octaves,
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
@@ -1486,6 +1518,8 @@ function applyWorld(o) {
   // noten horen al bij deze ladder en grondtoon
   if (o.scale !== undefined) scaleIdx = Math.max(0, Math.min(SCALES.length - 1, o.scale | 0));
   if (o.root !== undefined) rootSemi = Math.max(0, Math.min(11, o.root | 0));
+  // hoogte-op-Canvas; opslag van vóór deze instelling = standaard 4 octaven
+  octaves = o.oct !== undefined ? Math.max(2, Math.min(6, Math.round(o.oct))) : 4;
   for (const s of (o.spawners || [])) {
     const sp = addSpawner(s.x, s.y);
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
@@ -1528,6 +1562,7 @@ function applyWorld(o) {
   }
   setSlider($("scale"), scaleIdx);   // label sync (setScale merkt zelf dat idx gelijk blijft)
   setSlider($("root"), rootSemi);    // label sync
+  setSlider($("oct"), octaves);      // label sync (oude opslag zonder oct = standaard 4, slider syncen)
   selected = null;
   syncSelPanel();
   status("Creatie teruggezet");
