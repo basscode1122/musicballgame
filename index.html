@@ -29,6 +29,7 @@
   .row { display: grid; grid-template-columns: 84px 1fr 96px; align-items: center; gap: 8px; margin: 3px 0; }
   .row label { color: #9fb0c8; }
   .row output { color: #cfe0ff; text-align: right; font-variant-numeric: tabular-nums; }
+  .sub { font-size: 11px; color: #7488a8; margin: 10px 0 2px; }
   input[type=range] { width: 100%; accent-color: #4f8cff; margin: 0; }
   #selPanel {
     position: fixed; right: 12px; bottom: 12px; z-index: 10;
@@ -93,13 +94,15 @@
     <button id="btnReset">Reset</button>
     <span id="saveStatus"></span>
   </div>
+  <div class="sub">Standaard voor nieuwe spawners</div>
   <div class="row"><label for="atk">Attack</label><input id="atk" type="range" min="0" max="100" value="1"><output id="atkV"></output></div>
   <div class="row"><label for="dcy">Decay</label><input id="dcy" type="range" min="0" max="100" value="51"><output id="dcyV"></output></div>
   <div class="row"><label for="rel">Release</label><input id="rel" type="range" min="0" max="100" value="61"><output id="relV"></output></div>
+  <div class="sub">Globaal</div>
   <div class="row"><label for="vel">Velocity</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV"></output></div>
-  <div class="row"><label for="cnt">Aantal</label><input id="cnt" type="range" min="0" max="24" value="9"><output id="cntV"></output></div>
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators)</div>
+  <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon</div>
   </div>
 </div>
 
@@ -111,6 +114,9 @@
   <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
   <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
   <div class="row hidden" id="rowPitch"><label for="sPitch">Toon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
+  <div class="row hidden" id="rowAtk"><label for="sAtk">Attack</label><input id="sAtk" type="range" min="0" max="100" value="1"><output id="sAtkV"></output></div>
+  <div class="row hidden" id="rowDcy"><label for="sDcy">Decay</label><input id="sDcy" type="range" min="0" max="100" value="51"><output id="sDcyV"></output></div>
+  <div class="row hidden" id="rowRel"><label for="sRel">Release</label><input id="sRel" type="range" min="0" max="100" value="61"><output id="sRelV"></output></div>
   <div class="row hidden" id="rowMode"><label>Modus</label><div class="modes"><button id="bSynth" class="active">Synth</button><button id="bSampler">Sampler</button></div><output>&nbsp;</output></div>
   <div id="synthSec" class="hidden">
     <div class="row hidden" id="rowWave"><label for="sWave">Golf</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
@@ -143,9 +149,11 @@
      (Sinus/Blok/Zaag/Driehoek of je eigen microfoon-sample)
    - muren tekenen (modus Muur), met instelbare bounce per muur
      (0,05 tot 2,0: boven 1,0 versnellen ballen!)
-   - globale toonladder (5 standaard ladders), alles blijft consonant
+   - globale toonladder (5 standaard ladders op een instelbare grondtoon),
+     alles blijft consonant
    - alles wat botst maakt geluid via een ADR-synth (WebAudio),
-     met master-compressor tegen clipping (kraak)
+     met master-compressor tegen clipping (kraak); de ADR-envelope
+     is per spawner instelbaar (standaardwaarden in Instellingen)
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
      zichtbaar zodra je iets aantikt, weg als je niks selecteert
@@ -373,37 +381,43 @@ function noteNameFromFreq(f) {
   return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
 }
 
-/* ---- toonladders: 5 standaard ladders, allemaal op A (A1 = 55 Hz) ----
+/* ---- toonladders: 5 standaard ladders op een instelbare grondtoon ----
  * De ladder is GLOBAAL: spawners, ballen en muur-bounces volgen allemaal
- * dezelfde. Bij wisselen van ladder blijft de trap-index van elke noot
+ * dezelfde (alle noten over de hele machine blijven consonant). Bij
+ * wisselen van ladder of grondtoon blijft de trap-index van elke noot
  * gelijk (noot "nummer 10" blijft nummer 10, de toonhoogte verandert). */
 const SCALES = [
-  { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // A C D E G
-  { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // A B C# E F#
+  { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
+  { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
   { name: "Majeur",              semi: [0, 2, 4, 5, 7, 9, 11] },
   { name: "Mineur (Aeolisch)",   semi: [0, 2, 3, 5, 7, 8, 10] },
   { name: "Melodisch mineur",    semi: [0, 2, 3, 5, 7, 9, 11] }
 ];
 let scaleIdx = 0;
-function ladderFreq(i, sIdx) {
+let rootSemi = 0;         // grondtoon: 0 = A, 1 = A#, ..., 11 = G#
+function rootName() { return NOTE_NAMES[(9 + rootSemi) % 12]; }
+function ladderFreq(i, sIdx, root) {
   const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
+  const r = root === undefined ? rootSemi : root;
   const o = Math.floor(i / sc.semi.length), k = i % sc.semi.length;
-  return 55 * Math.pow(2, (o * 12 + sc.semi[k]) / 12);
+  return 55 * Math.pow(2, (r + o * 12 + sc.semi[k]) / 12);
 }
 function ladderMax(sIdx) {
-  return SCALES[sIdx === undefined ? scaleIdx : sIdx].semi.length * 6 - 1;   // A1 t/m A7
+  return SCALES[sIdx === undefined ? scaleIdx : sIdx].semi.length * 6 - 1;   // 6 octaven boven de grondtoon
 }
-function ladderIndexBelow(f, sIdx) {
+function ladderIndexBelow(f, sIdx, root) {
   // +1e-3 tegen afronding van de noten (afgeronde constanten kwamen
   // soms 1 index te laag uit, bv. 293.66 -> 28.9997 in plaats van 29)
   const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
-  const s = Math.max(0, Math.floor(12 * Math.log2(f / 55) + 1e-3));
+  const r = root === undefined ? rootSemi : root;
+  const s = Math.max(0, Math.floor(12 * Math.log2(f / 55) + 1e-3)) - r;
+  if (s < 0) return 0;
   const o = Math.floor(s / 12);
   let k = 0;
   for (let j = 0; j < sc.semi.length; j++) if (sc.semi[j] <= s % 12) k = j;
   return Math.min(ladderMax(sIdx), o * sc.semi.length + k);
 }
-/* bij elke muurbounce 1 trap op de ladder naar beneden (beneden A1 geklemd) */
+/* bij elke muurbounce 1 trap op de ladder naar beneden (onder de grondtoon geklemd) */
 function ladderStepDown(f) { return ladderFreq(Math.max(0, ladderIndexBelow(f) - 1)); }
 /* standaardnoot voor spawner n: 10 trappen vanaf A3 (220 Hz) omhoog */
 function defaultNote(n) { return ladderFreq(ladderIndexBelow(220) + ((n - 1) % 10)); }
@@ -414,6 +428,15 @@ function setScale(idx) {
   // alle bestaande noten remappen: trap-index blijft gelijk
   for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, oldIdx), ladderMax()));
   for (const b of balls) if (b.active) b.note = ladderFreq(Math.min(ladderIndexBelow(b.note, oldIdx), ladderMax()));
+  syncSelPanel();
+}
+function setRoot(semi) {
+  const oldRoot = rootSemi;
+  rootSemi = Math.max(0, Math.min(11, semi | 0));
+  if (oldRoot === rootSemi) return;
+  // alle bestaande noten remappen: trap-index blijft gelijk
+  for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, undefined, oldRoot), ladderMax()));
+  for (const b of balls) if (b.active) b.note = ladderFreq(Math.min(ladderIndexBelow(b.note, undefined, oldRoot), ladderMax()));
   syncSelPanel();
 }
 
@@ -501,7 +524,9 @@ function addSpawner(x, y) {
       { en: false, r: 0.5, i: 1.0 }
     ] },
     hue: (idx * 137.5) % 360,
-    note: defaultNote(idx)
+    note: defaultNote(idx),
+    // ADR-envelope per spawner (begint op de globale standaard uit Instellingen)
+    atk: synth.attack, dcy: synth.decay, rel: synth.release
   };
   spawners.push(sp);
   return sp;
@@ -571,18 +596,24 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   const vel = Math.min(1, Math.max(0, impactSpeed / 10));
   const vol = ball.vol !== undefined ? ball.vol : 1;
 
+  // stem van de spawner live opzoeken: envelope, modus (synth/sampler),
+  // opname en FM kunnen na het afvuren van de bal nog aangepast worden
+  const sp = ball.spId ? spawners.find(s => s.id === ball.spId) : null;
+
+  // ADR per spawner; zonder spawner (bv. persistente ballen) de globale
+  // standaard-envelope
+  const atk = Math.max(0.001, sp && sp.atk !== undefined ? sp.atk : synth.attack);
+  const dcy = Math.max(0.001, sp && sp.dcy !== undefined ? sp.dcy : synth.decay);
+  const rel = Math.max(0.001, sp && sp.rel !== undefined ? sp.rel : synth.release);
+
   const gain = audioCtx.createGain();
   const velGain = Math.pow(10, synth.velDepthDb * (1 - vel) / 20);
   const peak = BASE_LEVEL * velGain * MASTER * vol;   // volume per spawner
   gain.gain.setValueAtTime(0.0001, t);
-  gain.gain.linearRampToValueAtTime(peak, t + Math.max(0.001, synth.attack));
-  gain.gain.setTargetAtTime(SUSTAIN * peak, t + synth.attack, Math.max(0.001, synth.decay));
-  gain.gain.setTargetAtTime(0.0001, t + synth.attack + GATE, Math.max(0.001, synth.release));
-  const stop = t + synth.attack + GATE + synth.release * 6 + 0.3;
-
-  // stem van de spawner live opzoeken: modus (synth/sampler), opname en FM
-  // kunnen na het afvuren van de bal nog aangepast worden
-  const sp = ball.spId ? spawners.find(s => s.id === ball.spId) : null;
+  gain.gain.linearRampToValueAtTime(peak, t + atk);
+  gain.gain.setTargetAtTime(SUSTAIN * peak, t + atk, dcy);
+  gain.gain.setTargetAtTime(0.0001, t + atk + GATE, rel);
+  const stop = t + atk + GATE + rel * 6 + 0.3;
 
   // SAMPLER-modus: de eigen (genormaliseerde) microfoon-opname, gepitcht op
   // de ladder en gestart vanaf het ingestelde startpunt.
@@ -990,11 +1021,9 @@ bind("vel", "velV", p => {
   synth.velDepthDb = -p * 24 / 100;
   return synth.velDepthDb > -0.5 ? "0 dB (geen)" : synth.velDepthDb.toFixed(1) + " dB";
 });
-bind("cnt", "cntV", p => { persistentCount = p + 1; return String(persistentCount); });
-// ballen pas opnieuw laten vallen als de gebruiker de slider echt beweegt
-$("cnt").addEventListener("input", () => resetPersistent());
-// globale toonladder (5 standaard ladders, allemaal op A)
+// globale toonladder (5 standaard ladders) + grondtoon
 bind("scale", "scaleV", p => { setScale(+p); return SCALES[scaleIdx].name; });
+bind("root", "rootV", p => { setRoot(+p); return rootName(); });
 
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
   $(id).addEventListener("click", () => {
@@ -1070,7 +1099,7 @@ function syncSelPanel() {
   $("delBtn").classList.remove("hidden");
   if (selected.kind === "spawner") {
     $("selTitle").textContent = "Spawner " + selected.id;
-    ["rowInt", "rowSize", "rowAngle", "rowSpeed", "rowVolume", "rowPitch"]
+    ["rowInt", "rowSize", "rowAngle", "rowSpeed", "rowVolume", "rowPitch", "rowAtk", "rowDcy", "rowRel"]
       .forEach(id => $(id).classList.remove("hidden"));
     $("rowBounce").classList.add("hidden");
     setSlider($("sInt"), Math.round(100 * Math.log(obj.interval / 0.25) / Math.log(20)));
@@ -1079,12 +1108,18 @@ function syncSelPanel() {
     setSlider($("sSpeed"), Math.round(obj.speed / 0.2));
     setSlider($("sVolume"), Math.round(obj.vol * 100));
     setSlider($("sPitch"), Math.round(ladderIndexBelow(obj.note) / ladderMax() * 100));
+    setSlider($("sAtk"), Math.round(obj.atk * 1000 / 2));
+    setSlider($("sDcy"), Math.round(100 * Math.log(obj.dcy / 0.01) / Math.log(200)));
+    setSlider($("sRel"), Math.round(100 * Math.log(obj.rel / 0.01) / Math.log(200)));
     $("sIntV").textContent = fmtTime(obj.interval);
     $("sSizeV").textContent = "r " + obj.size.toFixed(2);
     $("sAngleV").textContent = Math.round(obj.angle) + "°";
     $("sSpeedV").textContent = obj.speed.toFixed(1);
     $("sVolumeV").textContent = Math.round(obj.vol * 100) + "%";
     $("sPitchV").textContent = noteNameFromFreq(obj.note) + " · " + Math.round(obj.note) + " Hz";
+    $("sAtkV").textContent = fmtTime(obj.atk);
+    $("sDcyV").textContent = fmtTime(obj.dcy);
+    $("sRelV").textContent = fmtTime(obj.rel);
     // modus + bijbehorende sectie (synth = golf/FM, sampler = opname/startpunt)
     const isSampler = obj.mode === MODE_SAMPLER;
     $("rowMode").classList.remove("hidden");
@@ -1131,6 +1166,9 @@ function syncSelPanel() {
     $("rowSpeed").classList.add("hidden");
     $("rowVolume").classList.add("hidden");
     $("rowPitch").classList.add("hidden");
+    $("rowAtk").classList.add("hidden");
+    $("rowDcy").classList.add("hidden");
+    $("rowRel").classList.add("hidden");
     $("rowMode").classList.add("hidden");
     $("synthSec").classList.add("hidden");
     $("samplerSec").classList.add("hidden");
@@ -1175,6 +1213,25 @@ $("sPitch").addEventListener("input", e => {
   if (obj) obj.note = ladderFreq(Math.round(+e.target.value * ladderMax() / 100));
   $("sPitchV").textContent =
     noteNameFromFreq(obj ? obj.note : 440) + " · " + Math.round(obj ? obj.note : 440) + " Hz";
+});
+// ADR per spawner: attack 0..2 ms-bereik, decay/release 10 ms..2 s logaritmisch
+$("sAtk").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.atk = +e.target.value * 2 / 1000;
+  $("sAtkV").textContent = fmtTime(obj ? obj.atk : 0);
+});
+$("sDcy").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.dcy = 0.01 * Math.pow(200, +e.target.value / 100);
+  $("sDcyV").textContent = fmtTime(obj ? obj.dcy : 0);
+});
+$("sRel").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.rel = 0.01 * Math.pow(200, +e.target.value / 100);
+  $("sRelV").textContent = fmtTime(obj ? obj.rel : 0);
 });
 $("sWave").addEventListener("input", e => {
   if (syncing) return;
@@ -1403,11 +1460,13 @@ function serializeWorld() {
   return JSON.stringify({
     v: 3,
     scale: scaleIdx,
+    root: rootSemi,
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
       speed: sp.speed, vol: sp.vol, note: sp.note,
       wave: Math.max(0, Math.min(3, sp.wave | 0)), mode: sp.mode,
+      atk: +sp.atk.toFixed(4), dcy: +sp.dcy.toFixed(4), rel: +sp.rel.toFixed(4),
       fm: { on: sp.fm.on ? 1 : 0, m: sp.fm.mods.map(m => [m.en ? 1 : 0, +m.r.toFixed(3), +m.i.toFixed(2)]) },
       smp: sampleToB64(sp.sample)
     })),
@@ -1423,14 +1482,19 @@ function applyWorld(o) {
   disposeWorldGl();
   spawners.length = 0;
   walls.length = 0;
-  // ladder eerst terugzetten (zonder remappen): de opgeslagen noten
-  // horen al bij deze ladder
+  // ladder + grondtoon eerst terugzetten (zonder remappen): de opgeslagen
+  // noten horen al bij deze ladder en grondtoon
   if (o.scale !== undefined) scaleIdx = Math.max(0, Math.min(SCALES.length - 1, o.scale | 0));
+  if (o.root !== undefined) rootSemi = Math.max(0, Math.min(11, o.root | 0));
   for (const s of (o.spawners || [])) {
     const sp = addSpawner(s.x, s.y);
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
     sp.speed = s.speed; sp.vol = s.vol; sp.note = s.note;
     sp.wave = (s.wave | 0) === 4 ? 0 : Math.max(0, Math.min(3, s.wave | 0));   // oude golf 4 = Sample -> sinus
+    // ADR per spawner (oudere opslag zonder ADR = de globale standaard)
+    sp.atk = s.atk !== undefined ? s.atk : synth.attack;
+    sp.dcy = s.dcy !== undefined ? s.dcy : synth.decay;
+    sp.rel = s.rel !== undefined ? s.rel : synth.release;
     sp.sample = b64ToSample(s.smp);
     // modus: nieuw veld; opslag vóór de modus (golf 4 + opname) = sampler
     sp.mode = (s.mode === MODE_SAMPLER || (s.mode === undefined && s.smp))
@@ -1448,7 +1512,7 @@ function applyWorld(o) {
   for (const b of balls) { b.active = false; b.spawned = false; }
   if (o.cnt !== undefined) {
     persistentCount = Math.max(0, Math.min(25, o.cnt | 0));
-    setSlider($("cnt"), persistentCount - 1);   // vuurt de listener: ballen vallen weer
+    resetPersistent();   // ballen vallen direct weer met de geladen hoeveelheid
   }
   if (o.cam) {
     cam.azimuth = o.cam.az; cam.elevation = o.cam.el;
@@ -1463,6 +1527,7 @@ function applyWorld(o) {
     setSlider($("vel"), Math.round(-synth.velDepthDb * 100 / 24));
   }
   setSlider($("scale"), scaleIdx);   // label sync (setScale merkt zelf dat idx gelijk blijft)
+  setSlider($("root"), rootSemi);    // label sync
   selected = null;
   syncSelPanel();
   status("Creatie teruggezet");
