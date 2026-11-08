@@ -57,6 +57,22 @@
     background: #151b28; color: #9fb0c8; font: 12px system-ui, sans-serif; cursor: pointer;
   }
   #saveStatus { color: #7488a8; font-size: 11px; margin-left: 4px; }
+  .fmBtn {
+    margin: 6px 0 2px; width: 100%; padding: 5px 0; border-radius: 7px;
+    border: 1px solid #2a3550; background: #151b28; color: #9fb0c8;
+    font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  .fmBtn.on { background: #24406e; color: #fff; border-color: #4f8cff; }
+  .fmLbl {
+    width: 100%; padding: 4px 0; border-radius: 6px; border: 1px solid #2a3550;
+    background: #151b28; color: #9fb0c8; font: 11px system-ui, sans-serif; cursor: pointer;
+  }
+  .fmLbl.on { background: #24406e; color: #fff; border-color: #4f8cff; }
+  #waveView {
+    display: block; width: 100%; height: 64px; margin-top: 6px;
+    background: #0d1420; border: 1px solid #2a3550; border-radius: 7px;
+    touch-action: none; cursor: ew-resize;
+  }
   .hidden { display: none; }
 </style>
 </head>
@@ -83,7 +99,7 @@
   <div class="row"><label for="vel">Velocity</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV"></output></div>
   <div class="row"><label for="cnt">Aantal</label><input id="cnt" type="range" min="0" max="24" value="9"><output id="cntV"></output></div>
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Golf "Sample" = eigen microfoon-geluid</div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators)</div>
   </div>
 </div>
 
@@ -95,10 +111,26 @@
   <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
   <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
   <div class="row hidden" id="rowPitch"><label for="sPitch">Toon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
-  <div class="row hidden" id="rowWave"><label for="sWave">Golf</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
+  <div class="row hidden" id="rowMode"><label>Modus</label><div class="modes"><button id="bSynth" class="active">Synth</button><button id="bSampler">Sampler</button></div><output>&nbsp;</output></div>
+  <div id="synthSec" class="hidden">
+    <div class="row hidden" id="rowWave"><label for="sWave">Golf</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
+    <button id="fmToggle" class="fmBtn">FM: uit</button>
+    <div class="row hidden" id="rowFmR0"><button id="fmE0" class="fmLbl">M1</button><input id="fmR0" type="range" min="0" max="100" value="50"><output id="fmR0V"></output></div>
+    <div class="row hidden" id="rowFmD0"><label>&nbsp;</label><input id="fmD0" type="range" min="0" max="100" value="25"><output id="fmD0V"></output></div>
+    <div class="row hidden" id="rowFmR1"><button id="fmE1" class="fmLbl">M2</button><input id="fmR1" type="range" min="0" max="100" value="75"><output id="fmR1V"></output></div>
+    <div class="row hidden" id="rowFmD1"><label>&nbsp;</label><input id="fmD1" type="range" min="0" max="100" value="13"><output id="fmD1V"></output></div>
+    <div class="row hidden" id="rowFmR2"><button id="fmE2" class="fmLbl">M3</button><input id="fmR2" type="range" min="0" max="100" value="89"><output id="fmR2V"></output></div>
+    <div class="row hidden" id="rowFmD2"><label>&nbsp;</label><input id="fmD2" type="range" min="0" max="100" value="13"><output id="fmD2V"></output></div>
+    <div class="row hidden" id="rowFmR3"><button id="fmE3" class="fmLbl">M4</button><input id="fmR3" type="range" min="0" max="100" value="25"><output id="fmR3V"></output></div>
+    <div class="row hidden" id="rowFmD3"><label>&nbsp;</label><input id="fmD3" type="range" min="0" max="100" value="25"><output id="fmD3V"></output></div>
+  </div>
+  <div id="samplerSec" class="hidden">
+    <button id="recBtn" class="hidden">Houd in om op te nemen</button>
+    <div id="recStatus" class="hidden"></div>
+    <canvas id="waveView" width="560" height="128"></canvas>
+    <div class="row hidden" id="rowStart"><label for="sStart">Start</label><input id="sStart" type="range" min="0" max="100" value="0"><output id="sStartV"></output></div>
+  </div>
   <div class="row hidden" id="rowBounce"><label for="sBounce">Bounce</label><input id="sBounce" type="range" min="0" max="100" value="50"><output id="sBounceV"></output></div>
-  <button id="recBtn" class="hidden">Houd in om op te nemen</button>
-  <div id="recStatus" class="hidden"></div>
   <button id="delBtn" class="hidden">Verwijder</button>
 </div>
 
@@ -385,11 +417,13 @@ function setScale(idx) {
   syncSelPanel();
 }
 
-/* ---- waveform-presets per spawner (index in WAVE_NAMES) ---- */
-const WAVE_NAMES = ["Sinus", "Blok", "Zaag", "Driehoek", "Sample"];
+/* ---- golfvorm-presets per spawner (index in WAVE_NAMES) ----
+ * Een spawner is een SYNTH (oscillator met golfvorm, eventueel met FM)
+ * of een SAMPLER (eigen microfoon-opname, zie sp.mode hieronder). */
+const WAVE_NAMES = ["Sinus", "Blok", "Zaag", "Driehoek"];
 const WAVE_TYPES = ["sine", "square", "sawtooth", "triangle"];
 const WAVE_HARM  = [0.3, 0.15, 0.15, 0.3];   // gain van de 2e harmonische
-const WAVE_SAMPLE = 4;                      // eigen microfoon-sample per spawner
+const MODE_SYNTH = 0, MODE_SAMPLER = 1;       // spawner-modus
 
 const balls = [];
 const ballColorScratch = new Float32Array(sphereVertCount * 3);
@@ -457,6 +491,15 @@ function addSpawner(x, y) {
   const sp = {
     id: idx, x, y, interval: 1.5, size: 0.7, timer: 0, angle: 270, speed: 5,
     wave: 0, vol: 1, sample: null,
+    mode: MODE_SYNTH,          // synth of sampler
+    // FM (alleen in synth-modus): aan/uit + 4 modulators
+    // (en = actief, r = frequentieratio t.o.v. de noot, i = index/deviatie)
+    fm: { on: false, mods: [
+      { en: true,  r: 1.0, i: 1.0 },
+      { en: false, r: 2.0, i: 0.5 },
+      { en: false, r: 3.0, i: 0.5 },
+      { en: false, r: 0.5, i: 1.0 }
+    ] },
     hue: (idx * 137.5) % 360,
     note: defaultNote(idx)
   };
@@ -471,11 +514,6 @@ let selected = null;   // {kind:'spawner'|'wall', id}
 function findSelected(kind, id) {
   const arr = kind === "spawner" ? spawners : walls;
   return arr.find(o => o.id === id) || null;
-}
-/* sample van de spawner waar een bal vandaan komt (voor golfvorm "Sample") */
-function spawnerSample(id) {
-  const sp = spawners.find(s => s.id === id);
-  return sp && sp.sample ? sp.sample : null;
 }
 function deleteSelected() {
   if (!selected) return;
@@ -521,7 +559,7 @@ function ensureAudio() {
   }
 }
 
-function collisionTone(impactSpeed, freq, pitchMul, wave, vol, sample) {
+function collisionTone(impactSpeed, freq, pitchMul, ball) {
   ensureAudio();
   if (!audioCtx) return;
   if (audioCtx.state === "suspended") audioCtx.resume();
@@ -531,6 +569,7 @@ function collisionTone(impactSpeed, freq, pitchMul, wave, vol, sample) {
 
   const f = freq * pitchMul;                    // exact: geen random-detune meer
   const vel = Math.min(1, Math.max(0, impactSpeed / 10));
+  const vol = ball.vol !== undefined ? ball.vol : 1;
 
   const gain = audioCtx.createGain();
   const velGain = Math.pow(10, synth.velDepthDb * (1 - vel) / 20);
@@ -541,9 +580,15 @@ function collisionTone(impactSpeed, freq, pitchMul, wave, vol, sample) {
   gain.gain.setTargetAtTime(0.0001, t + synth.attack + GATE, Math.max(0.001, synth.release));
   const stop = t + synth.attack + GATE + synth.release * 6 + 0.3;
 
-  // golfvorm "Sample": de eigen microfoon-opname, gepitcht op de ladder
-  // (zelfde ADR-envelope als de tonen; zonder opname valt het terug op sinus)
-  if (wave === WAVE_SAMPLE && sample && sample.data && sample.data.length > 0) {
+  // stem van de spawner live opzoeken: modus (synth/sampler), opname en FM
+  // kunnen na het afvuren van de bal nog aangepast worden
+  const sp = ball.spId ? spawners.find(s => s.id === ball.spId) : null;
+
+  // SAMPLER-modus: de eigen (genormaliseerde) microfoon-opname, gepitcht op
+  // de ladder en gestart vanaf het ingestelde startpunt.
+  // Zonder opname valt de stem terug op de synth met de ingestelde golfvorm.
+  if (sp && sp.mode === MODE_SAMPLER && sp.sample && sp.sample.data && sp.sample.data.length > 0) {
+    const sample = sp.sample;
     if (!sample.buffer) {
       const buf = audioCtx.createBuffer(1, sample.data.length, sample.sr || audioCtx.sampleRate);
       buf.copyToChannel(sample.data, 0);
@@ -552,16 +597,37 @@ function collisionTone(impactSpeed, freq, pitchMul, wave, vol, sample) {
     const src = audioCtx.createBufferSource();
     src.buffer = sample.buffer;
     src.playbackRate.value = Math.max(0.25, Math.min(4, f / sample.baseFreq));
+    const dur = sample.data.length / (sample.sr || audioCtx.sampleRate);
+    const off = Math.min((sample.start || 0) * dur, Math.max(0, dur - 0.01));
     src.connect(gain);
     gain.connect(masterBus);              // via de compressor-bus: geen kraak
-    src.start(t); src.stop(stop);
+    src.start(t, off); src.stop(stop);
     return;
   }
 
-  const w = WAVE_TYPES[wave] || "sine";
+  // SYNTH-modus (of sampler zonder opname): oscillator + 2e harmonische
+  const wave = Math.max(0, Math.min(WAVE_TYPES.length - 1, sp ? (sp.wave | 0) : (ball.wave | 0)));
+  const w = WAVE_TYPES[wave];
   const osc = audioCtx.createOscillator();
   osc.type = w;
   osc.frequency.value = f;
+
+  // FM (optioneel, per spawner): tot 4 sinus-modulators. Frequentie =
+  // ratio x de noot; de index geeft de deviatie in Hz als index x noot.
+  if (sp && sp.fm && sp.fm.on) {
+    for (const m of sp.fm.mods) {
+      if (!m.en) continue;
+      const mo = audioCtx.createOscillator();
+      mo.type = "sine";
+      mo.frequency.value = f * m.r;
+      const mg = audioCtx.createGain();
+      mg.gain.value = m.i * f;
+      mo.connect(mg);
+      mg.connect(osc.frequency);
+      mo.start(t); mo.stop(stop);
+    }
+  }
+
   const osc2 = audioCtx.createOscillator();    // lichte 2e harmonische
   osc2.type = "sine";
   osc2.frequency.value = f * 2;
@@ -659,7 +725,7 @@ function collideBallWall(b, w, dt) {
     b.vy = ty * vt + ny * vnAfter;
     b.spin = vt / b.r * 57.2958;                           // rollen
     if (impact > MIN_TONE_SPEED) {
-      collisionTone(impact, b.note, 0.5, b.wave, b.vol, spawnerSample(b.spId));   // muur = octaaf lager
+      collisionTone(impact, b.note, 0.5, b);      // muur = octaaf lager
       b.note = ladderStepDown(b.note);            // per muurhit 1 trap op de ladder lager
     }
     if (impact > MIN_FLASH_SPEED) b.flash = Math.min(1, 0.3 + impact * 0.12);
@@ -941,10 +1007,57 @@ for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wa
 // selectie-panel synchroniseren (los paneel: alleen zichtbaar bij een selectie)
 let syncing = false;
 function setSlider(el, p) { syncing = true; el.value = p; el.dispatchEvent(new Event("input")); syncing = false; }
-function updateRecRow(obj) {
-  const show = !!(obj && selected && selected.kind === "spawner" && obj.wave === WAVE_SAMPLE);
-  $("recBtn").classList.toggle("hidden", !show);
-  $("recStatus").classList.toggle("hidden", !show);
+/* de geselecteerde spawner (of null) */
+function selectedSpawner() {
+  return selected && selected.kind === "spawner" ? findSelected("spawner", selected.id) : null;
+}
+/* FM-slider-mapping: ratio 0.25..8 (logaritmisch), index 0..4 (lineair) */
+function fmRatioToSlider(r) { return Math.round(100 * Math.log(r / 0.25) / Math.log(32)); }
+function sliderToFmRatio(v) { return 0.25 * Math.pow(32, v / 100); }
+function fmDepthToSlider(i) { return Math.round(i * 25); }
+function sliderToFmDepth(v) { return v / 25; }
+/* startpunt-tekst: "0.42 s / 1.20 s" */
+function startText(obj) {
+  const smp = obj && obj.sample;
+  if (!smp || !smp.data || !smp.data.length) return "0 ms";
+  const dur = smp.data.length / (smp.sr || 48000);
+  return fmtTime((smp.start || 0) * dur) + " / " + fmtTime(dur);
+}
+/* waveform-tekening van de opname in het selectiepaneel: envelope per
+ * kolom + duidelijk startpunt; het deel vóór het startpunt is gedimd */
+function drawWaveView() {
+  const wv = $("waveView");
+  if (!wv || !wv.getContext) return;
+  const g = wv.getContext("2d");
+  if (!g) return;
+  const w = wv.width || 560, h = wv.height || 128;
+  g.fillStyle = "#0d1420"; g.fillRect(0, 0, w, h);
+  const obj = selectedSpawner();
+  const smp = obj && obj.mode === MODE_SAMPLER ? obj.sample : null;
+  if (!smp || !smp.data || !smp.data.length) {
+    g.strokeStyle = "#26324a"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
+    g.fillStyle = "#7488a8"; g.font = "11px system-ui, sans-serif";
+    g.textAlign = "center";
+    g.fillText("Nog geen opname: houd de knop ingedrukt", w / 2, h / 2 - 8);
+    return;
+  }
+  const d = smp.data, n = d.length;
+  const startFrac = Math.max(0, Math.min(1, smp.start || 0));
+  const startX = Math.round(startFrac * w);
+  g.fillStyle = "rgba(26,34,54,0.85)"; g.fillRect(0, 0, startX, h);   // gedimd
+  for (let x = 0; x < w; x++) {
+    const i0 = Math.floor(x / w * n), i1 = Math.max(i0 + 1, Math.floor((x + 1) / w * n));
+    let mn = 1, mx = -1;
+    for (let i = i0; i < i1; i++) { const v = d[i]; if (v < mn) mn = v; if (v > mx) mx = v; }
+    g.fillStyle = x >= startX ? "#4f8cff" : "#3a4a6a";
+    const y0 = (1 - mx) * h / 2, y1 = (1 - mn) * h / 2;
+    g.fillRect(x, y0, 1, Math.max(1, y1 - y0));
+  }
+  g.fillStyle = "#ffffff"; g.fillRect(startX, 0, 2, h);               // startlijn
+  g.fillStyle = "#cfe0ff"; g.font = "11px system-ui, sans-serif";
+  g.textAlign = "left";
+  g.fillText("start " + fmtTime(startFrac * n / (smp.sr || 48000)), 4, h - 6);
 }
 function syncSelPanel() {
   const obj = selected ? findSelected(selected.kind, selected.id) : null;
@@ -957,13 +1070,8 @@ function syncSelPanel() {
   $("delBtn").classList.remove("hidden");
   if (selected.kind === "spawner") {
     $("selTitle").textContent = "Spawner " + selected.id;
-    $("rowInt").classList.remove("hidden");
-    $("rowSize").classList.remove("hidden");
-    $("rowAngle").classList.remove("hidden");
-    $("rowSpeed").classList.remove("hidden");
-    $("rowVolume").classList.remove("hidden");
-    $("rowPitch").classList.remove("hidden");
-    $("rowWave").classList.remove("hidden");
+    ["rowInt", "rowSize", "rowAngle", "rowSpeed", "rowVolume", "rowPitch"]
+      .forEach(id => $(id).classList.remove("hidden"));
     $("rowBounce").classList.add("hidden");
     setSlider($("sInt"), Math.round(100 * Math.log(obj.interval / 0.25) / Math.log(20)));
     setSlider($("sSize"), Math.round((obj.size - 0.3) / 0.9 * 100));
@@ -971,18 +1079,50 @@ function syncSelPanel() {
     setSlider($("sSpeed"), Math.round(obj.speed / 0.2));
     setSlider($("sVolume"), Math.round(obj.vol * 100));
     setSlider($("sPitch"), Math.round(ladderIndexBelow(obj.note) / ladderMax() * 100));
-    setSlider($("sWave"), Math.round(obj.wave * 100 / 4));
     $("sIntV").textContent = fmtTime(obj.interval);
     $("sSizeV").textContent = "r " + obj.size.toFixed(2);
     $("sAngleV").textContent = Math.round(obj.angle) + "°";
     $("sSpeedV").textContent = obj.speed.toFixed(1);
     $("sVolumeV").textContent = Math.round(obj.vol * 100) + "%";
     $("sPitchV").textContent = noteNameFromFreq(obj.note) + " · " + Math.round(obj.note) + " Hz";
-    $("sWaveV").textContent = WAVE_NAMES[obj.wave];
-    updateRecRow(obj);
-    $("recStatus").textContent = obj.sample
-      ? "Sample: " + fmtTime(obj.sample.data.length / (obj.sample.sr || 48000))
-      : "Nog geen sample";
+    // modus + bijbehorende sectie (synth = golf/FM, sampler = opname/startpunt)
+    const isSampler = obj.mode === MODE_SAMPLER;
+    $("rowMode").classList.remove("hidden");
+    $("bSynth").classList.toggle("active", !isSampler);
+    $("bSampler").classList.toggle("active", isSampler);
+    $("synthSec").classList.toggle("hidden", isSampler);
+    $("samplerSec").classList.toggle("hidden", !isSampler);
+    if (isSampler) {
+      $("rowWave").classList.add("hidden");
+      $("recBtn").classList.remove("hidden");
+      $("recStatus").classList.remove("hidden");
+      $("rowStart").classList.remove("hidden");
+      $("recStatus").textContent = obj.sample && obj.sample.data && obj.sample.data.length
+        ? "Sample: " + fmtTime(obj.sample.data.length / (obj.sample.sr || 48000)) + " · genormaliseerd"
+        : "Nog geen opname";
+      setSlider($("sStart"), Math.round(((obj.sample && obj.sample.start) || 0) * 100));
+      $("sStartV").textContent = startText(obj);
+      drawWaveView();
+    } else {
+      $("rowWave").classList.remove("hidden");
+      setSlider($("sWave"), Math.round(Math.max(0, Math.min(3, obj.wave)) * 100 / 3));
+      $("sWaveV").textContent = WAVE_NAMES[obj.wave] || WAVE_NAMES[0];
+      $("fmToggle").textContent = obj.fm.on ? "FM: aan" : "FM: uit";
+      $("fmToggle").classList.toggle("on", obj.fm.on);
+      for (let k = 0; k < 4; k++) {
+        const m = obj.fm.mods[k];
+        $("rowFmR" + k).classList.toggle("hidden", !obj.fm.on);
+        $("rowFmD" + k).classList.toggle("hidden", !obj.fm.on);
+        $("fmE" + k).textContent = "M" + (k + 1) + (m.en ? " ✓" : "");
+        $("fmE" + k).classList.toggle("on", m.en);
+        if (obj.fm.on) {
+          setSlider($("fmR" + k), fmRatioToSlider(m.r));
+          setSlider($("fmD" + k), fmDepthToSlider(m.i));
+          $("fmR" + k + "V").textContent = "×" + m.r.toFixed(2);
+          $("fmD" + k + "V").textContent = "idx " + m.i.toFixed(1);
+        }
+      }
+    }
   } else {
     $("selTitle").textContent = "Muur " + selected.id;
     $("rowInt").classList.add("hidden");
@@ -991,9 +1131,10 @@ function syncSelPanel() {
     $("rowSpeed").classList.add("hidden");
     $("rowVolume").classList.add("hidden");
     $("rowPitch").classList.add("hidden");
-    $("rowWave").classList.add("hidden");
+    $("rowMode").classList.add("hidden");
+    $("synthSec").classList.add("hidden");
+    $("samplerSec").classList.add("hidden");
     $("rowBounce").classList.remove("hidden");
-    updateRecRow(null);
     setSlider($("sBounce"), Math.round((obj.rest - 0.05) / 1.95 * 100));
     $("sBounceV").textContent = "×" + obj.rest.toFixed(2);
   }
@@ -1038,9 +1179,8 @@ $("sPitch").addEventListener("input", e => {
 $("sWave").addEventListener("input", e => {
   if (syncing) return;
   const obj = selected && findSelected(selected.kind, selected.id);
-  if (obj) obj.wave = Math.round(+e.target.value * 4 / 100);   // 5 presets incl. Sample
+  if (obj) obj.wave = Math.round(Math.min(100, Math.max(0, +e.target.value)) * 3 / 100);   // 4 presets
   $("sWaveV").textContent = WAVE_NAMES[obj ? obj.wave : 0];
-  updateRecRow(obj);
 });
 $("sBounce").addEventListener("input", e => {
   if (syncing) return;
@@ -1050,10 +1190,80 @@ $("sBounce").addEventListener("input", e => {
 });
 $("delBtn").addEventListener("click", deleteSelected);
 
+/* ------------------------------------------------- spawner-modus + FM + startpunt */
+function setSpawnerMode(m) {
+  const obj = selectedSpawner();
+  if (!obj || obj.mode === m) return;
+  obj.mode = m;
+  syncSelPanel();
+}
+$("bSynth").addEventListener("click", () => setSpawnerMode(MODE_SYNTH));
+$("bSampler").addEventListener("click", () => setSpawnerMode(MODE_SAMPLER));
+
+$("fmToggle").addEventListener("click", () => {
+  const obj = selectedSpawner();
+  if (!obj) return;
+  obj.fm.on = !obj.fm.on;
+  syncSelPanel();
+});
+for (let k = 0; k < 4; k++) {
+  $("fmE" + k).addEventListener("click", () => {
+    const obj = selectedSpawner();
+    if (!obj) return;
+    obj.fm.mods[k].en = !obj.fm.mods[k].en;
+    syncSelPanel();
+  });
+  $("fmR" + k).addEventListener("input", e => {
+    if (syncing) return;
+    const obj = selectedSpawner();
+    if (!obj) return;
+    obj.fm.mods[k].r = sliderToFmRatio(+e.target.value);
+    $("fmR" + k + "V").textContent = "×" + obj.fm.mods[k].r.toFixed(2);
+  });
+  $("fmD" + k).addEventListener("input", e => {
+    if (syncing) return;
+    const obj = selectedSpawner();
+    if (!obj) return;
+    obj.fm.mods[k].i = sliderToFmDepth(+e.target.value);
+    $("fmD" + k + "V").textContent = "idx " + obj.fm.mods[k].i.toFixed(1);
+  });
+}
+
+/* startpunt: sleep op de waveform of gebruik de Start-slider */
+let wvDrag = false;
+function setStartFromPointer(e) {
+  const obj = selectedSpawner();
+  if (!obj || !obj.sample || !obj.sample.data || !obj.sample.data.length) return;
+  const wv = $("waveView");
+  const rect = wv.getBoundingClientRect();
+  const frac = Math.max(0, Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)));
+  obj.sample.start = frac;
+  setSlider($("sStart"), Math.round(frac * 100));
+  $("sStartV").textContent = startText(obj);
+  drawWaveView();
+}
+$("waveView").addEventListener("pointerdown", e => {
+  e.preventDefault();
+  wvDrag = true;
+  try { $("waveView").setPointerCapture(e.pointerId); } catch (err) {}
+  setStartFromPointer(e);
+});
+$("waveView").addEventListener("pointermove", e => { if (wvDrag) setStartFromPointer(e); });
+$("waveView").addEventListener("pointerup", () => { wvDrag = false; });
+$("waveView").addEventListener("pointercancel", () => { wvDrag = false; });
+$("sStart").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selectedSpawner();
+  if (obj && obj.sample) obj.sample.start = Math.max(0, Math.min(1, +e.target.value / 100));
+  $("sStartV").textContent = startText(obj);
+  drawWaveView();
+});
+
 /* ------------------------------------------------- microfoon-sample opnemen
- * Golfvorm "Sample" per spawner: houd de opnameknop ingedrukt om op te
- * nemen, laat los om te stoppen. De opname wordt de basis-noot van de
- * spawner op dat moment gepitched (zelfde ladder als alle tonen). */
+ * Sampler-modus per spawner: houd de opnameknop ingedrukt om op te nemen,
+ * laat los om te stoppen. De opname wordt automatisch genormaliseerd
+ * (piek op 0,95) en is daarna de basis van de spawner, gepitcht op de
+ * noot van de spawner op het moment van opnemen (zelfde ladder als alles). */
 let recState = null;        // actieve opname of null
 let recPendingStop = false;
 function recStatus(msg) { $("recStatus").textContent = msg; }
@@ -1120,8 +1330,18 @@ function stopRecording() {
   let o = 0; for (const c of st.chunks) { data.set(c, o); o += c.length; }
   const obj = selected && selected.kind === "spawner" ? findSelected("spawner", selected.id) : null;
   if (!obj) return;
-  obj.sample = { data, baseFreq: st.baseFreq, sr: st.sr, buffer: null };
-  recStatus("Sample: " + fmtTime(len / st.sr));
+  // automatisch normaliseren: piek naar 0,95 (zachte opnames klinken even hard)
+  let peak = 0;
+  for (let i = 0; i < data.length; i++) { const a = Math.abs(data[i]); if (a > peak) peak = a; }
+  let normTxt = "";
+  if (peak > 1e-6) {
+    const g = 0.95 / peak;
+    for (let i = 0; i < data.length; i++) data[i] *= g;
+    normTxt = " · genormaliseerd (×" + g.toFixed(1) + ")";
+  }
+  obj.sample = { data, baseFreq: st.baseFreq, sr: st.sr, buffer: null, start: 0 };
+  recStatus("Sample: " + fmtTime(len / st.sr) + normTxt);
+  drawWaveView();
 }
 $("recBtn").addEventListener("pointerdown", e => { e.preventDefault(); startRecording(); });
 $("recBtn").addEventListener("pointerup", stopRecording);
@@ -1147,7 +1367,7 @@ function sampleToB64(smp) {
   let bin = "";
   for (let i = 0; i < u8.length; i += 8192)
     bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
-  return { sr: smp.sr || 48000, base: smp.baseFreq, b: btoa(bin) };
+  return { sr: smp.sr || 48000, base: smp.baseFreq, start: smp.start || 0, b: btoa(bin) };
 }
 function b64ToSample(o) {
   if (!o || !o.b) return null;
@@ -1158,7 +1378,17 @@ function b64ToSample(o) {
     const i16 = new Int16Array(u8.buffer, 0, Math.floor(u8.length / 2));
     const data = new Float32Array(i16.length);
     for (let i = 0; i < data.length; i++) data[i] = i16[i] / 32767;
-    return { data, baseFreq: +o.base || 440, sr: o.sr || 48000, buffer: null };
+    // bij het laden ook normaliseren (oudere opnames waren dat nog niet)
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) { const a = Math.abs(data[i]); if (a > peak) peak = a; }
+    if (peak > 1e-6) {
+      const g = 0.95 / peak;
+      for (let i = 0; i < data.length; i++) data[i] *= g;
+    }
+    return {
+      data, baseFreq: +o.base || 440, sr: o.sr || 48000, buffer: null,
+      start: Math.max(0, Math.min(1, +o.start || 0))
+    };
   } catch (err) { return null; }
 }
 function disposeWorldGl() {
@@ -1171,12 +1401,14 @@ function disposeWorldGl() {
 }
 function serializeWorld() {
   return JSON.stringify({
-    v: 2,
+    v: 3,
     scale: scaleIdx,
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
-      speed: sp.speed, vol: sp.vol, note: sp.note, wave: sp.wave,
+      speed: sp.speed, vol: sp.vol, note: sp.note,
+      wave: Math.max(0, Math.min(3, sp.wave | 0)), mode: sp.mode,
+      fm: { on: sp.fm.on ? 1 : 0, m: sp.fm.mods.map(m => [m.en ? 1 : 0, +m.r.toFixed(3), +m.i.toFixed(2)]) },
       smp: sampleToB64(sp.sample)
     })),
     walls: walls.map(w => ({
@@ -1197,8 +1429,20 @@ function applyWorld(o) {
   for (const s of (o.spawners || [])) {
     const sp = addSpawner(s.x, s.y);
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
-    sp.speed = s.speed; sp.vol = s.vol; sp.note = s.note; sp.wave = s.wave;
+    sp.speed = s.speed; sp.vol = s.vol; sp.note = s.note;
+    sp.wave = (s.wave | 0) === 4 ? 0 : Math.max(0, Math.min(3, s.wave | 0));   // oude golf 4 = Sample -> sinus
     sp.sample = b64ToSample(s.smp);
+    // modus: nieuw veld; opslag vóór de modus (golf 4 + opname) = sampler
+    sp.mode = (s.mode === MODE_SAMPLER || (s.mode === undefined && s.smp))
+      ? MODE_SAMPLER : MODE_SYNTH;
+    if (s.fm) {
+      sp.fm.on = !!s.fm.on;
+      const arr = s.fm.m || [];
+      for (let k = 0; k < 4; k++) {
+        const m = arr[k];
+        if (m && m.length >= 3) sp.fm.mods[k] = { en: !!m[0], r: +m[1] || 1, i: +m[2] || 0 };
+      }
+    }
   }
   for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest);
   for (const b of balls) { b.active = false; b.spawned = false; }
