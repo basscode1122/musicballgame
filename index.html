@@ -104,7 +104,7 @@
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
   <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
   <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon = plek op het canvas (midden = A4, 1 schermhoogte = ingestelde octaven) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers, volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
   </div>
 </div>
 
@@ -154,12 +154,14 @@
      alles blijft consonant
    - de toonhoogte is ABSOLUUT: volledig bepaald door de plek op het
      canvas (midden van het veld = A4 = 440 Hz = midden van de piano);
-     1 zichtbare schermhoogte = het ingestelde aantal octaven
-     (Instellingen, standaard 4, 2 t/m 6), gekwantiseerd op de ladder
+     de hoogte van het HELE veld (y -300 t/m 300) = het ingestelde
+     aantal octaven (Instellingen, standaard 4, 2 t/m 6), gekwantiseerd
+     op de ladder; zoomen verandert de toon dus NIET
    - de camera draait niet meer rond (vaste kijkhoek): je kunt alleen
      in- en uitzoomen, richt op de plek onder je cursor of vingers
-     (scrollen of 2 vingers); met Camera reset ga je terug naar het
-     midden
+     (scrollen of 2 vingers); volledig uitgezoomd zie je het HELE
+     speelveld (de grens past zich aan het vensterformaat aan);
+     met Camera reset ga je terug naar het midden
    - botsingen buiten beeld klinken zachter als je inzoomt (max -8 dB
      bij volledig ingezoomd, 0 dB volledig uitgezoomd, vloeiend ertussen)
    - elke toon pant mee met de plek van de botsing op het scherm,
@@ -377,12 +379,15 @@ const WALL_HALF = 0.15, WALL_DEPTH = 0.28;
 const CONTACT_FRICTION = 2.0;   // bal-bal-bounce is bewust weg
 const REST_SPEED = 0.6, MIN_TONE_SPEED = 0.8, MIN_FLASH_SPEED = 0.1;
 const FLASH_DECAY = 4.0, DESPAWN_Y = -300, DESPAWN_X = 300;
+/* grenzen van het speelveld (net buiten deze randen despawnen ballen);
+ * dit is ook de maatstaf voor de maximale uitzoom, zie maxCamDist() */
+const FIELD_X = 300, FIELD_Y = 300;
 /* ballen verdwijnen pas als ze VOLLEDIG buiten de speelruimte zijn
  * (rand van de bal voorbij de grens, niet het middelpunt) */
 const SWIPE_GAIN = 6.0, SWIPE_RADIUS = 2.5;
 // afvuursnelheid zit per spawner in sp.speed (0..20, standaard 5)
 const CENTER = [0, 1.2, 0];
-const CAM_MIN_DIST = 5, CAM_MAX_DIST = 270;   // mee gegroeid met het 3x grotere veld
+const CAM_MIN_DIST = 5;   // maximale inzoom (uitzoomgrens is dynamisch: maxCamDist)
 
 /* ---- toonhoogte: nootnamen voor de weergave ---- */
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -401,7 +406,8 @@ function noteNameFromFreq(f) {
  * ladder (zelfde hoogte = dichtstbijzijnde trap).
  * De toonhoogte van een bal is ABSOLUUT: volledig bepaald door de plek
  * op het canvas (midden van het veld = A4 = 440 Hz = midden van de
- * piano), 1 zichtbare schermhoogte = `octaves` octaven. */
+ * piano). De hoogte van het HELE veld (y -300 t/m 300, dus 600) = het
+ * ingestelde aantal octaven; zoomen verandert de toon niet. */
 const SCALES = [
   { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
   { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
@@ -411,7 +417,7 @@ const SCALES = [
 ];
 let scaleIdx = 0;
 let rootSemi = 0;         // grondtoon: 0 = A, 1 = A#, ..., 11 = G#
-let octaves = 4;          // hoogte-op-Canvas: 1 zichtbare schermhoogte = dit aantal octaven
+let octaves = 4;          // hoogte-op-Canvas: het HELE veld (600 hoog) = dit aantal octaven
 function rootName() { return NOTE_NAMES[(9 + rootSemi) % 12]; }
 function ladderFreq(i, sIdx, root) {
   const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
@@ -438,13 +444,16 @@ function ladderIndexBelow(f, sIdx, root) {
  * De toon van een bal wordt volledig bepaald door de plek op het canvas
  * (geen relatieve starttoon meer): het midden van het veld (y = CENTER_Y)
  * is het midden van de piano (A4 = 440 Hz, precies de middelste trede van
- * de ladder A1..A7), en 1 zichtbare schermhoogte = `octaves` octaven
- * (Instellingen, standaard 4, 2 t/m 6). De doeltoon wordt op de
- * dichtstbijzijnde ladder-trap gekwantiseerd. Spawners tactisch plaatsen
- * is dus belangrijk: hoger op het canvas = hogere toon. */
+ * de ladder A1..A7), en de hoogte van het HELE veld (y -300 t/m 300) =
+ * `octaves` octaven (Instellingen, standaard 4, 2 t/m 6). De doeltoon
+ * wordt op de dichtstbijzijnde ladder-trap gekwantiseerd. Zoomen
+ * verandert de toon NIET meer: de schaal staat vast op de veldhoogte.
+ * Spawners tactisch plaatsen is dus belangrijk: hoger op het
+ * canvas = hogere toon. */
 const MID_F = 440;   // A4: midden van de piano = midden van de ladder
+const PITCH_H = 600; // vaste toonhoogte-referentie: hoogte van het hele veld (y -300..300)
 function posPitch(y) {
-  return ladderNearest(Math.max(ladderFreq(0), MID_F * Math.pow(2, (y - CENTER[1]) / visibleH() * octaves)));
+  return ladderNearest(Math.max(ladderFreq(0), MID_F * Math.pow(2, (y - CENTER[1]) / PITCH_H * octaves)));
 }
 function ladderNearest(f) {
   const i = ladderIndexBelow(f);
@@ -452,7 +461,6 @@ function ladderNearest(f) {
   const f0 = ladderFreq(i), f1 = ladderFreq(i + 1);
   return f / f0 < f1 / f ? f0 : f1;              // log-helft: dichtstbijzijnde
 }
-function visibleH() { return 2 * Math.max(0.5, Math.abs(eye[2])) * TANH; }
 function setScale(idx) {
   const oldIdx = scaleIdx;
   scaleIdx = Math.max(0, Math.min(SCALES.length - 1, idx | 0));
@@ -847,13 +855,37 @@ const camTarget = [0, 1.2, 0];   // waar de camera naar kijkt (zoom-mikpunt)
 let camAxis = null, eye = [0, 0, 17];
 const TANH = Math.tan(25 * Math.PI / 180);
 
+/* ---- maximale uitzoom: het HELE speelveld past op het scherm ----
+ * Bij deze vaste kijkhoek is de camera-as altijd gelijk, of je nu in-
+ * of uitzoomt of het mikpunt verschuift. Uit de projectie volgt per
+ * veldhoek hoe ver de camera minstens weg moet staan:
+ *   d >= hoekpunt.kijk-as + max(|scherm-x| / (TANH*aspect), |scherm-y| / TANH)
+ * De grootste van de vier hoeken, met 5% marge, is de maximale
+ * uitzoom-afstand: volledig uitgezoomd zie je dus het hele veld,
+ * in elke venster-verhouding (breed, maar ook smal/portret). */
+function maxCamDist() {
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const ax = cameraAxes(
+    [Math.cos(CAM_EL) * Math.sin(CAM_AZ), Math.sin(CAM_EL), Math.cos(CAM_EL) * Math.cos(CAM_AZ)],
+    [0, 0, 0], [0, 1, 0]);   // precies dezelfde assen als in de render-loop
+  let m = 0;
+  for (let sy = -1; sy <= 1; sy += 2) for (let sx = -1; sx <= 1; sx += 2) {
+    const qx = sx * FIELD_X - camTarget[0], qy = sy * FIELD_Y - camTarget[1];
+    const wq = qx * ax.z[0] + qy * ax.z[1];   // hoekpunt . kijk-as (vlak z=0)
+    const px = qx * ax.x[0] + qy * ax.x[1];   // scherm-x van het hoekpunt
+    const py = qx * ax.y[0] + qy * ax.y[1];   // scherm-y van het hoekpunt
+    m = Math.max(m, wq + Math.max(Math.abs(px) / (TANH * aspect), Math.abs(py) / TANH));
+  }
+  return Math.max(CAM_MIN_DIST, m * 1.05);   // 5% marge rond het veld
+}
+
 /* ---- zoom naar een punt: het wereldpunt onder de cursor (of tussen de
  * twee vingers) blijft op zijn eigen pixel zitten. eye = T + dist*richting;
  * met T' = P + k*(T-P) en dist' = k*dist geldt exact eye' = P + k*(eye-P),
  * dus P projecteert na het zoomen op dezelfde plek op het scherm. Het
  * mikpunt blijft op het speelvlak (z=0), dus ronddraaien blijft simpel. */
 function zoomAtWorld(p, k) {
-  const nd = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, cam.distance * k));
+  const nd = Math.max(CAM_MIN_DIST, Math.min(maxCamDist(), cam.distance * k));
   const kk = nd / cam.distance;
   cam.distance = nd;
   if (!p || Math.abs(kk - 1) < 1e-9) return;
@@ -908,7 +940,8 @@ function offscreenAtten(x, y) {
   const nd = ndcOf(x, y);
   const out = nd === null ? Infinity : Math.max(Math.abs(nd[0]), Math.abs(nd[1]));
   const edge = Math.max(0, Math.min(1, (out - 1) / 0.15));   // 0 in beeld, 1 buiten
-  const zoomFrac = Math.log(CAM_MAX_DIST / cam.distance) / Math.log(CAM_MAX_DIST / CAM_MIN_DIST);
+  const MD = maxCamDist();   // dynamisch: heel veld zichtbaar = maximale uitzoom
+  const zoomFrac = Math.max(0, Math.min(1, Math.log(MD / cam.distance) / Math.log(MD / CAM_MIN_DIST)));
   const db = -OFFSCREEN_DB * edge * zoomFrac;
   return Math.pow(10, db / 20);
 }
@@ -1110,7 +1143,7 @@ bind("vel", "velV", p => {
 // globale toonladder (5 standaard ladders) + grondtoon
 bind("scale", "scaleV", p => { setScale(+p); return SCALES[scaleIdx].name; });
 bind("root", "rootV", p => { setRoot(+p); return rootName(); });
-// hoogte-op-Canvas: aantal octaven per zichtbare schermhoogte (2 t/m 6)
+// hoogte-op-Canvas: aantal octaven over de hoogte van het HELE veld (2 t/m 6)
 bind("oct", "octV", p => {
   octaves = Math.max(2, Math.min(6, Math.round(+p)));
   return octaves + " octaven";
@@ -1602,7 +1635,7 @@ function applyWorld(o) {
   if (o.cam) {
     // vaste kijkhoek: alleen afstand + zoom-mikpunt (oude opslag met az/el
     // laadt gewoon, die hoeken worden genegeerd)
-    cam.distance = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, o.cam.dist));
+    cam.distance = Math.max(CAM_MIN_DIST, Math.min(maxCamDist(), o.cam.dist));
     // mikpunt herstellen (oude opslag zonder tx/ty = gewoon het midden)
     camTarget[0] = Math.max(-150, Math.min(150, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
     camTarget[1] = Math.max(-100, Math.min(150, o.cam.ty !== undefined ? o.cam.ty : CENTER[1]));
@@ -1714,6 +1747,10 @@ function frame() {
     canvas.height = Math.floor(innerHeight * dpr);
   }
 
+  // venster kan verkleind zijn: uitzoom blijft binnen de nieuwe maximum
+  const MD = maxCamDist();
+  if (cam.distance > MD) cam.distance = MD;
+
   // camera (kijkt naar camTarget; vaste kijkhoek, geen rond draaien)
   eye = [
     camTarget[0] + cam.distance * Math.cos(CAM_EL) * Math.sin(CAM_AZ),
@@ -1722,7 +1759,8 @@ function frame() {
   ];
   camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
   view = mat4View(camAxis, eye);
-  proj = mat4Perspective(50, canvas.width / Math.max(1, canvas.height), 0.1, 400);
+  proj = mat4Perspective(50, canvas.width / Math.max(1, canvas.height), 0.1,
+    cam.distance + 2 * (FIELD_X + FIELD_Y));   // ver genoeg voor heel het veld, ook volledig uitgezoomd
 
   stepPhysics(dt);
 
