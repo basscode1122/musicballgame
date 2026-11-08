@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="nl">
 <head>
@@ -11,7 +12,7 @@
     position: fixed; left: 12px; top: 12px; z-index: 10;
     background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
     padding: 10px 14px; color: #e8eef7; font: 12px/1.4 system-ui, sans-serif;
-    width: 308px; box-sizing: border-box;
+    width: 308px; max-width: calc(100vw - 24px); box-sizing: border-box;
     max-height: calc(100vh - 24px); overflow-y: auto;
   }
   #panelToggle {
@@ -33,8 +34,8 @@
     position: fixed; right: 12px; bottom: 12px; z-index: 10;
     background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
     padding: 10px 14px; color: #e8eef7; font: 12px/1.4 system-ui, sans-serif;
-    width: 308px; box-sizing: border-box;
-    max-height: calc(100vh - 24px); overflow-y: auto; display: none;
+    width: 308px; max-width: calc(100vw - 24px); box-sizing: border-box;
+    max-height: min(55vh, calc(100vh - 24px)); overflow-y: auto; display: none;
   }
   #selTitle { color: #cfe0ff; font-weight: 600; margin-bottom: 2px; }
   #recBtn {
@@ -861,7 +862,6 @@ function endPointer(e) {
     return;
   }
   gesture = null;
-  const held = performance.now() - (g ? g.t0 : 0);
   if (g && g.kind === "wall" && dragWall) {
     const len = Math.hypot(dragWall.x1 - dragWall.x0, dragWall.y1 - dragWall.y0);
     if (len > 0.5) {
@@ -874,19 +874,26 @@ function endPointer(e) {
     }
     dragWall = null;
   } else if (g && g.kind === "swipe") {
-    if (!g.moved && held < 300) {
+    // tik zonder beweging = selecteren, hoe lang je ook inhoudt (op een
+    // telefoon is een tik vaak langer dan 300 ms en dan selecteerde hij niks)
+    if (!g.moved) {
       const p = planePoint(e.clientX, e.clientY);
       const now = performance.now();
       if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
-      else { selectAt(p); lastTapTime = now; }
+      else lastTapTime = now;
+      // selecteer ALTIJD: bij een dubbeltik vallen de ballen opnieuw, maar
+      // de tik moet daarnaast ook gewoon het ding onder je vinger pakken
+      selectAt(p);
     }
   } else if (g && g.kind === "spawnerGesture") {
     clearTimeout(g.timer);
-    if (!g.moved && !g.placed && held < 300) {
+    // tik zonder beweging en zonder plaatsing (lang indrukken plaatst al)
+    if (!g.moved && !g.placed) {
       const p = planePoint(e.clientX, e.clientY);
       const now = performance.now();
       if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
-      else { selectAt(p); lastTapTime = now; }
+      else lastTapTime = now;
+      selectAt(p);
     }
   }
 }
