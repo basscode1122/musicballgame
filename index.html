@@ -106,7 +106,7 @@
   <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
   <div class="row"><label for="fw">Veldbreedte</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
   <div class="row"><label for="fh">Veldhoogte</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers, volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; 2 vingers samen schuiven = camera over het veld (zoals Google Maps) &middot; volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
   </div>
 </div>
 
@@ -164,17 +164,23 @@
      Veldhoogte, 100 t/m 600 per kant; standaard 200 x 200): ballen
      despawnen net buiten de rand, de uitzoomgrens en de toonschaal
      passen zich meteen aan
-   - de camera draait niet meer rond (vaste kijkhoek): je kunt alleen
-     in- en uitzoomen, richt op de plek onder je cursor of vingers
-     (scrollen of 2 vingers); volledig uitgezoomd zie je het HELE
+   - de camera draait niet meer rond (vaste kijkhoek): je kunt in- en
+     uitzoomen, richt op de plek onder je cursor of vingers (scrollen
+     of 2 vingers knijpen), en met 2 vingers samen schuiven pant je
+     de camera over het veld (zoals Google Maps: het veld plakt aan
+     je vingers; het mikpunt blijft binnen het veld); volledig
+     uitgezoomd zie je het HELE
      speelveld (de grens past zich aan het vensterformaat aan);
      met Camera reset ga je terug naar het midden
    - botsingen buiten beeld klinken zachter als je inzoomt (max -8 dB
      bij volledig ingezoomd, 0 dB volledig uitgezoomd, vloeiend ertussen)
    - elke toon pant mee met de plek van de botsing op het scherm,
      maximaal 75% links of rechts
-   - alles wat botst maakt geluid via een ADR-synth (WebAudio),
-     met master-compressor tegen clipping (kraak); de ADR-envelope
+   - alles wat botst maakt geluid via een ADR-synth (WebAudio), met
+     master-compressor + tanh soft-clipper tegen clipping: bij heel
+     veel gelijktijdige tonen schiet de som in de aanval-tijd van de
+     compressor nog even boven 1.0 en de tanh knijpt die pieken zacht
+     weg (geen gekraak meer); de ADR-envelope
      is per spawner instelbaar (standaardwaarden in Instellingen)
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
@@ -395,9 +401,9 @@ let fieldHalfX = 100, fieldHalfY = 100;
 function setFieldSize(hx, hy) {
   fieldHalfX = Math.max(50, Math.min(300, +hx || 100));
   fieldHalfY = Math.max(50, Math.min(300, +hy || 100));
-  // het mikpunt kan buiten het verkleinde veld liggen: terug binnen de klemmen
-  camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, camTarget[0]));
-  camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, camTarget[1]));
+  // het mikpunt kan buiten het verkleinde veld liggen: terug binnen het veld
+  camTarget[0] = Math.max(-fieldHalfX, Math.min(fieldHalfX, camTarget[0]));
+  camTarget[1] = Math.max(-fieldHalfY, Math.min(fieldHalfY, camTarget[1]));
 }
 /* ballen verdwijnen pas als ze VOLLEDIG buiten de speelruimte zijn
  * (rand van de bal voorbij de grens, niet het middelpunt) */
@@ -621,18 +627,28 @@ function ensureAudio() {
     audioCtx = new AC();
   }
   if (!masterBus) {
-    // master-bus met compressor: veel gelijktijdige tonen kunnen boven 1.0
-    // uitkomen; de compressor vangt de pieken af zodat het niet kraakt (clipping)
+    // master-bus met compressor + soft-clipper. Veel gelijktijdige tonen
+    // kunnen samen boven 1.0 uitkomen: de compressor vangt de gemiddelde
+    // drukte af, maar in zijn aanval-tijd (3 ms) schiet de som bij pieken
+    // nog even boven 1.0 en dan clippt de uitgang hard = gekraak. De
+    // tanh-curve knijpt die pieken zacht weg (zachte signalen horen daar
+    // vrijwel niets van; oversample 4x tegen vervormings-aliasing)
     const comp = audioCtx.createDynamicsCompressor();
     comp.threshold.value = -12;
     comp.knee.value = 12;
     comp.ratio.value = 6;
     comp.attack.value = 0.003;
     comp.release.value = 0.15;
+    const clip = audioCtx.createWaveShaper();
+    const curve = new Float32Array(1024);
+    for (let i = 0; i < 1024; i++) curve[i] = Math.tanh(i / 1023 * 2 - 1);
+    clip.curve = curve;
+    clip.oversample = "4x";
     const bus = audioCtx.createGain();
     bus.gain.value = 1.0;
     bus.connect(comp);
-    comp.connect(audioCtx.destination);
+    comp.connect(clip);
+    clip.connect(audioCtx.destination);
     masterBus = bus;
   }
 }
@@ -900,20 +916,46 @@ function maxCamDist() {
  * twee vingers) blijft op zijn eigen pixel zitten. eye = T + dist*richting;
  * met T' = P + k*(T-P) en dist' = k*dist geldt exact eye' = P + k*(eye-P),
  * dus P projecteert na het zoomen op dezelfde plek op het scherm. Het
- * mikpunt blijft op het speelvlak (z=0), dus ronddraaien blijft simpel. */
+ * mikpunt blijft binnen het speelveld. */
 function zoomAtWorld(p, k) {
   const nd = Math.max(CAM_MIN_DIST, Math.min(maxCamDist(), cam.distance * k));
   const kk = nd / cam.distance;
   cam.distance = nd;
-  if (!p || Math.abs(kk - 1) < 1e-9) return;
-  camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, p[0] + (camTarget[0] - p[0]) * kk));
-  camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, p[1] + (camTarget[1] - p[1]) * kk));
+  if (p && Math.abs(kk - 1) >= 1e-9) {
+    camTarget[0] = Math.max(-fieldHalfX, Math.min(fieldHalfX, p[0] + (camTarget[0] - p[0]) * kk));
+    camTarget[1] = Math.max(-fieldHalfY, Math.min(fieldHalfY, p[1] + (camTarget[1] - p[1]) * kk));
+  }
+  syncCamera();
+}
+
+/* ---- pannen met 2 vingers (zoals Google Maps): het vastgepakte
+ * wereldpunt blijft tussen je vingers, het veld "plakt" dus aan ze.
+ * Het mikpunt blijft binnen het speelveld; Camera reset gaat terug
+ * naar het midden. */
+function panCam(dx, dy) {
+  camTarget[0] = Math.max(-fieldHalfX, Math.min(fieldHalfX, camTarget[0] + dx));
+  camTarget[1] = Math.max(-fieldHalfY, Math.min(fieldHalfY, camTarget[1] + dy));
+  syncCamera();
+}
+
+/* eye/camAxis direct bijwerken na een camerabeweging: anders rekent een
+ * volgend planePoint nog met de camera van de laatste frame, en bij snel
+ * achter elkaar pannen/zoomen (meerdere pointer-events per frame) komen
+ * de delta's scheef uit. */
+function syncCamera() {
+  eye = [
+    camTarget[0] + cam.distance * Math.cos(CAM_EL) * Math.sin(CAM_AZ),
+    camTarget[1] + cam.distance * Math.sin(CAM_EL),
+    camTarget[2] + cam.distance * Math.cos(CAM_EL) * Math.cos(CAM_AZ)
+  ];
+  camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
 }
 function zoomAt(clientX, clientY, k) {
   zoomAtWorld(planePoint(clientX, clientY), k);
 }
 function resetCam() {
   camTarget[0] = CENTER[0]; camTarget[1] = CENTER[1]; cam.distance = 17;
+  syncCamera();
 }
 
 function planePoint(clientX, clientY) {
@@ -1019,10 +1061,20 @@ canvas.addEventListener("pointerdown", (e) => {
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) {
     const [p1, p2] = [...pointers.values()];
+    // het één-vinger-gebaar is voorbij zodra de tweede vinger landt:
+    // een lopende lang-indruk-timer afbreken (pannen plaats géén spawner)
+    // en een beginnende muur loslaten (pannen tekent géén muur)
+    if (gesture) {
+      if (gesture.timer) clearTimeout(gesture.timer);
+      dragWall = null;
+    }
     gesture = {
       kind: "pinch",
       dist: Math.hypot(p1.x - p2.x, p1.y - p2.y),
-      zoomPt: planePoint((p1.x + p2.x) / 2, (p1.y + p2.y) / 2)   // zoom naar deze plek
+      // het vastgepakte wereldpunt tussen de vingers: blijft tijdens het
+      // hele gebaar tussen de vingers (pannen schuift eromheen, zoomen
+      // draait eromheen), zoals bij kaart-apps
+      anchor: planePoint((p1.x + p2.x) / 2, (p1.y + p2.y) / 2)
     };
   } else if (pointers.size === 1) {
     if (mode === "wall") {
@@ -1034,7 +1086,7 @@ canvas.addEventListener("pointerdown", (e) => {
         kind: "swipe", last: planePoint(e.clientX, e.clientY),
         sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
       };
-    } else {   // spawner-modus: slepen = camera, lang indrukken = plaatsen
+    } else {   // spawner-modus: lang indrukken = plaatsen (slepen breekt af)
       const g = {
         kind: "spawnerGesture", sx: e.clientX, sy: e.clientY,
         t0: performance.now(), moved: false, placed: false,
@@ -1064,7 +1116,16 @@ canvas.addEventListener("pointermove", (e) => {
     const [p1, p2] = [...pointers.values()];
     if (!p2) return;
     const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-    if (gesture.dist > 1) zoomAtWorld(gesture.zoomPt, gesture.dist / d);
+    // 1) pannen: het vastgepakte wereldpunt blijft tussen de vingers
+    //    (midden verplaatsen = camera meeschuiven, zoals Google Maps)
+    if (gesture.anchor) {
+      const now = planePoint((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+      if (now) panCam(gesture.anchor[0] - now[0], gesture.anchor[1] - now[1]);
+    }
+    // 2) zoomen rond hetzelfde punt (afstand tussen de vingers);
+    //    na het pannen ligt de anchor exact onder het midden, dus
+    //    zoomAtWorld met de anchor houdt alles op zijn plek
+    if (gesture.dist > 1 && d > 1) zoomAtWorld(gesture.anchor, gesture.dist / d);
     gesture.dist = d;
   } else if (gesture.kind === "wall") {
     const p = planePoint(e.clientX, e.clientY);
@@ -1078,7 +1139,7 @@ canvas.addEventListener("pointermove", (e) => {
       gesture.last = p;
     }
   } else if (gesture.kind === "spawnerGesture") {
-    // slepen = lang-indrukken afbreken (de camera draait niet meer rond)
+    // slepen = lang-indrukken afbreken (de camera beweegt met 2 vingers)
     const dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
     if (Math.hypot(dx, dy) > 12) {
       gesture.moved = true;
@@ -1669,8 +1730,8 @@ function applyWorld(o) {
     // laadt gewoon, die hoeken worden genegeerd)
     cam.distance = Math.max(CAM_MIN_DIST, Math.min(maxCamDist(), o.cam.dist));
     // mikpunt herstellen (oude opslag zonder tx/ty = gewoon het midden)
-    camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
-    camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, o.cam.ty !== undefined ? o.cam.ty : CENTER[1]));
+    camTarget[0] = Math.max(-fieldHalfX, Math.min(fieldHalfX, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
+    camTarget[1] = Math.max(-fieldHalfY, Math.min(fieldHalfY, o.cam.ty !== undefined ? o.cam.ty : CENTER[1]));
   }
   if (o.synth) {
     synth.attack = o.synth.attack; synth.decay = o.synth.decay;
