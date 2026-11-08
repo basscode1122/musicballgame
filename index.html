@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Bollen-muziekmachine</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1017; }
+  #c { width: 100vw; height: 100vh; display: block; touch-action: none; }
+  #panel {
+    position: fixed; left: 12px; top: 12px; z-index: 10;
+    background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
+    padding: 10px 14px; color: #e8eef7; font: 12px/1.4 system-ui, sans-serif;
+    width: 308px; box-sizing: border-box;
+    max-height: calc(100vh - 24px); overflow-y: auto;
+  }
+  #panelToggle {
+    width: 100%; padding: 6px 0; border-radius: 7px; border: 1px solid #2a3550;
+    background: #151b28; color: #9fb0c8; font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  #panel h2 { margin: 0 0 6px; font-size: 13px; color: #9fb0c8; font-weight: 600; letter-spacing: .04em; }
+  .modes { display: flex; gap: 6px; margin: 4px 0 8px; }
+  .modes button {
+    flex: 1; padding: 6px 0; border-radius: 7px; border: 1px solid #2a3550;
+    background: #151b28; color: #9fb0c8; font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  .modes button.active { background: #24406e; color: #fff; border-color: #4f8cff; }
+  .row { display: grid; grid-template-columns: 84px 1fr 96px; align-items: center; gap: 8px; margin: 3px 0; }
+  .row label { color: #9fb0c8; }
+  .row output { color: #cfe0ff; text-align: right; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: #4f8cff; margin: 0; }
+  #selPanel {
+    position: fixed; right: 12px; bottom: 12px; z-index: 10;
+    background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
+    padding: 10px 14px; color: #e8eef7; font: 12px/1.4 system-ui, sans-serif;
+    width: 308px; box-sizing: border-box;
+    max-height: calc(100vh - 24px); overflow-y: auto; display: none;
+  }
+  #selTitle { color: #cfe0ff; font-weight: 600; margin-bottom: 2px; }
+  #recBtn {
+    margin-top: 6px; width: 100%; padding: 6px 0; border-radius: 7px;
+    border: 1px solid #7a3040; background: #3a1a24; color: #ffb0c0;
+    font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  #recBtn.recording { background: #6a1a24; color: #fff; }
+  #recStatus { color: #7488a8; font-size: 11px; margin: 2px 0 0 4px; }
+  #delBtn {
+    margin-top: 6px; width: 100%; padding: 5px 0; border-radius: 7px;
+    border: 1px solid #7a3040; background: #3a1a24; color: #ffb0c0;
+    font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  #hint { margin-top: 8px; color: #7488a8; font-size: 11px; }
+  #saveRow { display: flex; gap: 6px; margin: 6px 0 2px; align-items: center; }
+  #saveRow button {
+    flex: 1; padding: 6px 0; border-radius: 7px; border: 1px solid #2a3550;
+    background: #151b28; color: #9fb0c8; font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  #saveStatus { color: #7488a8; font-size: 11px; margin-left: 4px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <button id="panelToggle"></button>
+  <div id="panelBody">
+  <h2>Bollen-muziekmachine</h2>
+  <div class="modes">
+    <button id="mPlay" class="active">Play</button>
+    <button id="mSpawner">Spawner</button>
+    <button id="mWall">Muur</button>
+  </div>
+  <div id="saveRow">
+    <button id="btnSave">Opslaan</button>
+    <button id="btnLoad">Laden</button>
+    <button id="btnReset">Reset</button>
+    <span id="saveStatus"></span>
+  </div>
+  <div class="row"><label for="atk">Attack</label><input id="atk" type="range" min="0" max="100" value="1"><output id="atkV"></output></div>
+  <div class="row"><label for="dcy">Decay</label><input id="dcy" type="range" min="0" max="100" value="51"><output id="dcyV"></output></div>
+  <div class="row"><label for="rel">Release</label><input id="rel" type="range" min="0" max="100" value="61"><output id="relV"></output></div>
+  <div class="row"><label for="vel">Velocity</label><input id="vel" type="range" min="0" max="100" value="50"><output id="velV"></output></div>
+  <div class="row"><label for="cnt">Aantal</label><input id="cnt" type="range" min="0" max="24" value="9"><output id="cntV"></output></div>
+  <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen, 2 vingers = camera &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Golf "Sample" = eigen microfoon-geluid</div>
+  </div>
+</div>
+
+<div id="selPanel">
+  <div id="selTitle"></div>
+  <div class="row hidden" id="rowInt"><label for="sInt">Interval</label><input id="sInt" type="range" min="0" max="100" value="45"><output id="sIntV"></output></div>
+  <div class="row hidden" id="rowSize"><label for="sSize">Grootte</label><input id="sSize" type="range" min="0" max="100" value="44"><output id="sSizeV"></output></div>
+  <div class="row hidden" id="rowAngle"><label for="sAngle">Richting</label><input id="sAngle" type="range" min="0" max="100" value="75"><output id="sAngleV"></output></div>
+  <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
+  <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
+  <div class="row hidden" id="rowPitch"><label for="sPitch">Toon</label><input id="sPitch" type="range" min="0" max="100" value="50"><output id="sPitchV"></output></div>
+  <div class="row hidden" id="rowWave"><label for="sWave">Golf</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
+  <div class="row hidden" id="rowBounce"><label for="sBounce">Bounce</label><input id="sBounce" type="range" min="0" max="100" value="50"><output id="sBounceV"></output></div>
+  <button id="recBtn" class="hidden">Houd in om op te nemen</button>
+  <div id="recStatus" class="hidden"></div>
+  <button id="delBtn" class="hidden">Verwijder</button>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   Bollen-muziekmachine (preview van de Android-app)
+   - 2D-physics in het XY-vlak (z=0): ballen vallen, botsen, rollen
+   - meerdere spawners, elk met eigen interval, grootte en golfvorm
+     (Sinus/Blok/Zaag/Driehoek of je eigen microfoon-sample)
+   - muren tekenen (modus Muur), met instelbare bounce per muur
+     (0,05 tot 2,0: boven 1,0 versnellen ballen!)
+   - globale toonladder (5 standaard ladders), alles blijft consonant
+   - alles wat botst maakt geluid via een ADR-synth (WebAudio),
+     met master-compressor tegen clipping (kraak)
+   - creaties opslaan in localStorage, laden en het canvas resetten
+   - selectiepanel staat los van het Instellingen-menu: altijd
+     zichtbaar zodra je iets aantikt, weg als je niks selecteert
+   ===================================================================== */
+
+const canvas = document.getElementById("c");
+const gl = canvas.getContext("webgl", { antialias: true });
+
+/* ------------------------------------------------- shaders */
+const VS = `
+uniform mat4 uMVP;
+uniform mat4 uModel;
+attribute vec3 aPosition;
+attribute vec3 aNormal;
+attribute vec3 aColor;
+varying vec3 vColor;
+varying vec3 vNormal;
+void main() {
+  gl_Position = uMVP * vec4(aPosition, 1.0);
+  vColor = aColor;
+  vNormal = mat3(uModel) * aNormal;
+}`;
+const FS = `
+precision mediump float;
+varying vec3 vColor;
+varying vec3 vNormal;
+uniform vec3 uLightDir;
+void main() {
+  float diff = max(dot(normalize(vNormal), normalize(uLightDir)), 0.0);
+  gl_FragColor = vec4(vColor * (0.35 + 0.75 * diff), 1.0);
+}`;
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VS));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FS));
+gl.linkProgram(prog);
+if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+const aPosition = gl.getAttribLocation(prog, "aPosition");
+const aNormal   = gl.getAttribLocation(prog, "aNormal");
+const aColor    = gl.getAttribLocation(prog, "aColor");
+const uMVP      = gl.getUniformLocation(prog, "uMVP");
+const uModel    = gl.getUniformLocation(prog, "uModel");
+const uLightDir = gl.getUniformLocation(prog, "uLightDir");
+
+/* ------------------------------------------------- kleine mat4 lib (kolom-majeur) */
+function mat4Identity() { return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function mat4Multiply(a, b) {
+  const o = new Array(16);
+  for (let c = 0; c < 4; c++)
+    for (let r = 0; r < 4; r++)
+      o[c*4+r] = a[r] * b[c*4] + a[4+r] * b[c*4+1] + a[8+r] * b[c*4+2] + a[12+r] * b[c*4+3];
+  return o;
+}
+function mat4Translate(x, y, z) { const m = mat4Identity(); m[12] = x; m[13] = y; m[14] = z; return m; }
+function mat4Scale(x, y, z) { return [x,0,0,0, 0,y,0,0, 0,0,z,0, 0,0,0,1]; }
+function mat4RotZ(deg) {
+  const a = deg * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+  return [c,s,0,0, -s,c,0,0, 0,0,1,0, 0,0,0,1];
+}
+function mat4Perspective(fovDeg, aspect, near, far) {
+  const f = 1 / Math.tan(fovDeg * Math.PI / 360);
+  return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)/(near-far),-1, 0,0,2*far*near/(near-far),0];
+}
+function cameraAxes(eye, center, up) {
+  const sub = (a,b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+  const norm = v => { const l = Math.hypot(v[0],v[1],v[2]); return [v[0]/l,v[1]/l,v[2]/l]; };
+  const cross = (a,b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+  const zAxis = norm(sub(eye, center));
+  const xAxis = norm(cross(up, zAxis));
+  const yAxis = cross(zAxis, xAxis);
+  return { x: xAxis, y: yAxis, z: zAxis };
+}
+function mat4View(ax, eye) {
+  return [ax.x[0], ax.y[0], ax.z[0], 0,
+          ax.x[1], ax.y[1], ax.z[1], 0,
+          ax.x[2], ax.y[2], ax.z[2], 0,
+          -(ax.x[0]*eye[0]+ax.x[1]*eye[1]+ax.x[2]*eye[2]),
+          -(ax.y[0]*eye[0]+ax.y[1]*eye[1]+ax.y[2]*eye[2]),
+          -(ax.z[0]*eye[0]+ax.z[1]*eye[1]+ax.z[2]*eye[2]), 1];
+}
+
+/* ------------------------------------------------- geometrie: bol */
+const SECTORS = 16, RINGS = 10;
+const sphereVertCount = (SECTORS + 1) * (RINGS + 1);
+const spherePos = new Float32Array(sphereVertCount * 3);
+const sphereNy  = new Float32Array(sphereVertCount);        // voor rol-zichtbaarheid
+(function () {
+  let i = 0;
+  for (let r = 0; r <= RINGS; r++) {
+    const phi = Math.PI * r / RINGS;
+    for (let s = 0; s <= SECTORS; s++) {
+      const th = 2 * Math.PI * s / SECTORS;
+      const nx = Math.sin(phi) * Math.cos(th);
+      const ny = Math.cos(phi);
+      const nz = Math.sin(phi) * Math.sin(th);
+      spherePos[i*3] = nx; spherePos[i*3+1] = ny; spherePos[i*3+2] = nz;
+      sphereNy[i] = ny;
+      i++;
+    }
+  }
+})();
+const sphereIdx = new Uint16Array(RINGS * SECTORS * 6);
+(function () {
+  let k = 0;
+  for (let r = 0; r < RINGS; r++)
+    for (let s = 0; s < SECTORS; s++) {
+      const a = r * (SECTORS + 1) + s;
+      const b = a + SECTORS + 1;
+      sphereIdx[k++] = a; sphereIdx[k++] = b;     sphereIdx[k++] = b + 1;
+      sphereIdx[k++] = a; sphereIdx[k++] = b + 1;  sphereIdx[k++] = a + 1;
+    }
+})();
+
+/* geometrie: kubus (voor muren) */
+const CUBE_FACE_NORMALS = [[0,0,1],[0,0,-1],[0,1,0],[0,-1,0],[1,0,0],[-1,0,0]];
+const CUBE_FACE_LIGHT   = [1.00, 0.80, 1.10, 0.70, 0.92, 0.86];
+const cubePos = new Float32Array(24 * 3);
+(function () {
+  const P = [
+    [-1,-1, 1],[ 1,-1, 1],[ 1, 1, 1],[-1, 1, 1],
+    [ 1,-1,-1],[-1,-1,-1],[-1, 1,-1],[ 1, 1,-1],
+    [-1, 1, 1],[ 1, 1, 1],[ 1, 1,-1],[-1, 1,-1],
+    [-1,-1,-1],[ 1,-1,-1],[ 1,-1, 1],[-1,-1, 1],
+    [ 1,-1, 1],[ 1,-1,-1],[ 1, 1,-1],[ 1, 1, 1],
+    [-1,-1,-1],[-1,-1, 1],[-1, 1, 1],[-1, 1,-1]
+  ];
+  for (let i = 0; i < 24; i++) cubePos.set(P[i], i * 3);
+})();
+const cubeNrm = new Float32Array(24 * 3);
+for (let f = 0; f < 6; f++)
+  for (let v = 0; v < 4; v++) cubeNrm.set(CUBE_FACE_NORMALS[f], (f * 4 + v) * 3);
+const cubeIdx = new Uint16Array(36);
+for (let f = 0; f < 6; f++) {
+  const b = f * 4;
+  cubeIdx.set([b, b+1, b+2, b, b+2, b+3], f * 6);
+}
+
+function buffer(target, data) {
+  const b = gl.createBuffer();
+  gl.bindBuffer(target, b);
+  gl.bufferData(target, data, gl.STATIC_DRAW);
+  return b;
+}
+const spherePosBuf = buffer(gl.ARRAY_BUFFER, spherePos);
+const sphereIdxBuf  = buffer(gl.ELEMENT_ARRAY_BUFFER, sphereIdx);
+const cubePosBuf    = buffer(gl.ARRAY_BUFFER, cubePos);
+const cubeNrmBuf    = buffer(gl.ARRAY_BUFFER, cubeNrm);
+const cubeIdxBuf    = buffer(gl.ELEMENT_ARRAY_BUFFER, cubeIdx);
+
+/* backdrop (donkere achtergrond achter het speelvlak) */
+const bdPosBuf = buffer(gl.ARRAY_BUFFER, new Float32Array([
+  -450,-300,-1.2,  450,-300,-1.2,  450,300,-1.2,  -450,300,-1.2
+]));
+const bdNrmBuf = buffer(gl.ARRAY_BUFFER, new Float32Array([0,0,1, 0,0,1, 0,0,1, 0,0,1]));
+const bdColBuf = buffer(gl.ARRAY_BUFFER, new Float32Array(12).map((_, i) => [0.10, 0.12, 0.18][i % 3]));
+const bdIdxBuf = buffer(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array([0, 1, 2, 0, 2, 3]));
+
+function bindSphereAttribs() {
+  // bij een eenheidsbol geldt: normaal = positie
+  gl.bindBuffer(gl.ARRAY_BUFFER, spherePosBuf);
+  gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereIdxBuf);
+}
+function bindCubeAttribs() {
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubePosBuf);
+  gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, cubeNrmBuf);
+  gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIdxBuf);
+}
+bindSphereAttribs();
+gl.enableVertexAttribArray(aPosition);
+gl.enableVertexAttribArray(aNormal);
+// FIX uit eerdere ronde: ook het kleur-attribuut echt enablen,
+// anders tekent GL de standaardwaarde (0,0,0) en is alles zwart.
+gl.enableVertexAttribArray(aColor);
+
+/* ------------------------------------------------- kleur-hulpjes */
+function hslToRgb(hDeg, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const hp = (((hDeg % 360) + 360) % 360) / 60;
+  const x = c * (1 - Math.abs(hp % 2 - 1));
+  let r = 0, g = 0, b = 0;
+  if (hp < 1) { r = c; g = x; }
+  else if (hp < 2) { r = x; g = c; }
+  else if (hp < 3) { g = c; b = x; }
+  else if (hp < 4) { g = x; b = c; }
+  else if (hp < 5) { r = x; b = c; }
+  else { r = c; b = x; }
+  const m = l - c / 2;
+  return [Math.min(1, r + m), Math.min(1, g + m), Math.min(1, b + m)];
+}
+
+/* ------------------------------------------------- wereld-status */
+const BALL_MAX = 60;
+const GRAVITY = 10.0, AIR_DRAG = 0.05, MAX_SPEED = 20;   // = max afvuursnelheid
+const WALL_HALF = 0.15, WALL_DEPTH = 0.28;
+const CONTACT_FRICTION = 2.0;   // bal-bal-bounce is bewust weg
+const REST_SPEED = 0.6, MIN_TONE_SPEED = 0.8, MIN_FLASH_SPEED = 0.1;
+const FLASH_DECAY = 4.0, DESPAWN_Y = -300, DESPAWN_X = 300;
+/* ballen verdwijnen pas als ze VOLLEDIG buiten de speelruimte zijn
+ * (rand van de bal voorbij de grens, niet het middelpunt) */
+const SWIPE_GAIN = 6.0, SWIPE_RADIUS = 2.5;
+// afvuursnelheid zit per spawner in sp.speed (0..20, standaard 5)
+const CENTER = [0, 1.2, 0];
+const CAM_MIN_DIST = 5, CAM_MAX_DIST = 270;   // mee gegroeid met het 3x grotere veld
+
+/* ---- toonhoogte: nootnamen voor de weergave ---- */
+const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+function semiFromFreq(f) {
+  return Math.max(0, Math.min(72, Math.round(12 * Math.log2(f / 55))));
+}
+function noteNameFromFreq(f) {
+  const midi = 33 + semiFromFreq(f);         // A1 = MIDI 33
+  return NOTE_NAMES[midi % 12] + (Math.floor(midi / 12) - 1);
+}
+
+/* ---- toonladders: 5 standaard ladders, allemaal op A (A1 = 55 Hz) ----
+ * De ladder is GLOBAAL: spawners, ballen en muur-bounces volgen allemaal
+ * dezelfde. Bij wisselen van ladder blijft de trap-index van elke noot
+ * gelijk (noot "nummer 10" blijft nummer 10, de toonhoogte verandert). */
+const SCALES = [
+  { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // A C D E G
+  { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // A B C# E F#
+  { name: "Majeur",              semi: [0, 2, 4, 5, 7, 9, 11] },
+  { name: "Mineur (Aeolisch)",   semi: [0, 2, 3, 5, 7, 8, 10] },
+  { name: "Melodisch mineur",    semi: [0, 2, 3, 5, 7, 9, 11] }
+];
+let scaleIdx = 0;
+function ladderFreq(i, sIdx) {
+  const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
+  const o = Math.floor(i / sc.semi.length), k = i % sc.semi.length;
+  return 55 * Math.pow(2, (o * 12 + sc.semi[k]) / 12);
+}
+function ladderMax(sIdx) {
+  return SCALES[sIdx === undefined ? scaleIdx : sIdx].semi.length * 6 - 1;   // A1 t/m A7
+}
+function ladderIndexBelow(f, sIdx) {
+  // +1e-3 tegen afronding van de noten (afgeronde constanten kwamen
+  // soms 1 index te laag uit, bv. 293.66 -> 28.9997 in plaats van 29)
+  const sc = SCALES[sIdx === undefined ? scaleIdx : sIdx];
+  const s = Math.max(0, Math.floor(12 * Math.log2(f / 55) + 1e-3));
+  const o = Math.floor(s / 12);
+  let k = 0;
+  for (let j = 0; j < sc.semi.length; j++) if (sc.semi[j] <= s % 12) k = j;
+  return Math.min(ladderMax(sIdx), o * sc.semi.length + k);
+}
+/* bij elke muurbounce 1 trap op de ladder naar beneden (beneden A1 geklemd) */
+function ladderStepDown(f) { return ladderFreq(Math.max(0, ladderIndexBelow(f) - 1)); }
+/* standaardnoot voor spawner n: 10 trappen vanaf A3 (220 Hz) omhoog */
+function defaultNote(n) { return ladderFreq(ladderIndexBelow(220) + ((n - 1) % 10)); }
+function setScale(idx) {
+  const oldIdx = scaleIdx;
+  scaleIdx = Math.max(0, Math.min(SCALES.length - 1, idx | 0));
+  if (oldIdx === scaleIdx) return;
+  // alle bestaande noten remappen: trap-index blijft gelijk
+  for (const sp of spawners) sp.note = ladderFreq(Math.min(ladderIndexBelow(sp.note, oldIdx), ladderMax()));
+  for (const b of balls) if (b.active) b.note = ladderFreq(Math.min(ladderIndexBelow(b.note, oldIdx), ladderMax()));
+  syncSelPanel();
+}
+
+/* ---- waveform-presets per spawner (index in WAVE_NAMES) ---- */
+const WAVE_NAMES = ["Sinus", "Blok", "Zaag", "Driehoek", "Sample"];
+const WAVE_TYPES = ["sine", "square", "sawtooth", "triangle"];
+const WAVE_HARM  = [0.3, 0.15, 0.15, 0.3];   // gain van de 2e harmonische
+const WAVE_SAMPLE = 4;                      // eigen microfoon-sample per spawner
+
+const balls = [];
+const ballColorScratch = new Float32Array(sphereVertCount * 3);
+for (let i = 0; i < BALL_MAX; i++) {
+  balls.push({
+    x: 0, y: 0, vx: 0, vy: 0, r: 0.7,
+    angle: 0, spin: 0, flash: 0,
+    hue: 0, note: 440, wave: 0, vol: 1, spId: 0, active: false, spawned: false, born: 0
+  });
+}
+
+function uploadBallColors(b, base, hit) {
+  const f = b.flash;
+  for (let i = 0; i < sphereVertCount; i++) {
+    const roll = 0.8 + 0.35 * sphereNy[i];   // rol-zichtbaarheid
+    ballColorScratch[i*3  ] = (base[0] + (hit[0] - base[0]) * f) * roll;
+    ballColorScratch[i*3+1] = (base[1] + (hit[1] - base[1]) * f) * roll;
+    ballColorScratch[i*3+2] = (base[2] + (hit[2] - base[2]) * f) * roll;
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, b.colorBuf);
+  // FIX uit eerdere ronde: bufferData toewijzen, geen bufferSubData op
+  // een lege buffer (dat faalt stilletjes en geeft zwarte ballen).
+  gl.bufferData(gl.ARRAY_BUFFER, ballColorScratch, gl.DYNAMIC_DRAW);
+}
+
+const wallColorScratch = new Float32Array(72);
+function uploadWallColors(w) {
+  const rgb = w.color;   // berekend in wallColor(w)
+  for (let f = 0; f < 6; f++) {
+    const light = CUBE_FACE_LIGHT[f];
+    for (let v = 0; v < 4; v++) {
+      const d = (f * 4 + v) * 3;
+      wallColorScratch[d  ] = rgb[0] * light;
+      wallColorScratch[d+1] = rgb[1] * light;
+      wallColorScratch[d+2] = rgb[2] * light;
+    }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, w.colorBuf);
+  gl.bufferData(gl.ARRAY_BUFFER, wallColorScratch, gl.DYNAMIC_DRAW);
+}
+
+/* muren: lijnstukken met eigen bounce */
+const walls = [];
+let wallSeq = 0;
+function addWall(x0, y0, x1, y1, rest) {
+  const w = {
+    id: ++wallSeq, x0, y0, x1, y1, rest,
+    colorBuf: gl.createBuffer(), color: [1, 1, 1], dirty: true
+  };
+  walls.push(w);
+  return w;
+}
+function wallColor(w) {
+  const sel = selected && selected.kind === "wall" && selected.id === w.id;
+  // rood = dood, groen = 1,0 (neutraal), blauw = versneller (boven 1,0)
+  const hue = w.rest <= 1 ? w.rest * 120 : 120 + (w.rest - 1) * 120;
+  return sel ? [0.95, 0.95, 1.0] : hslToRgb(hue, 0.7, 0.45);
+}
+
+/* spawners: elk met interval, grootte, eigen kleur en toonhoogte */
+const spawners = [];
+let spawnerSeq = 0;
+function addSpawner(x, y) {
+  const idx = ++spawnerSeq;
+  const sp = {
+    id: idx, x, y, interval: 1.5, size: 0.7, timer: 0, angle: 270, speed: 5,
+    wave: 0, vol: 1, sample: null,
+    hue: (idx * 137.5) % 360,
+    note: defaultNote(idx)
+  };
+  spawners.push(sp);
+  return sp;
+}
+
+/* lege start: helemaal niets; spawners, muren en ballen maak je zelf */
+
+/* selectie */
+let selected = null;   // {kind:'spawner'|'wall', id}
+function findSelected(kind, id) {
+  const arr = kind === "spawner" ? spawners : walls;
+  return arr.find(o => o.id === id) || null;
+}
+/* sample van de spawner waar een bal vandaan komt (voor golfvorm "Sample") */
+function spawnerSample(id) {
+  const sp = spawners.find(s => s.id === id);
+  return sp && sp.sample ? sp.sample : null;
+}
+function deleteSelected() {
+  if (!selected) return;
+  const arr = selected.kind === "spawner" ? spawners : walls;
+  const i = arr.findIndex(o => o.id === selected.id);
+  if (i >= 0) {
+    const o = arr[i];
+    // GL-buffers netjes vrijgeven
+    if (o.colorBuf) gl.deleteBuffer(o.colorBuf);
+    if (o.arrowBuf) gl.deleteBuffer(o.arrowBuf);
+    if (o.sample) o.sample = null;
+    arr.splice(i, 1);
+  }
+  selected = null;
+  syncSelPanel();
+}
+
+/* ------------------------------------------------- WebAudio ADR-synth */
+const SUSTAIN = 0.25, GATE = 0.30, MASTER = 0.5, BASE_LEVEL = 0.85;
+let audioCtx = null, masterBus = null, lastToneTime = 0;
+const synth = { attack: 0.002, decay: 0.15, release: 0.25, velDepthDb: -12 };
+
+function ensureAudio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+  }
+  if (!masterBus) {
+    // master-bus met compressor: veel gelijktijdige tonen kunnen boven 1.0
+    // uitkomen; de compressor vangt de pieken af zodat het niet kraakt (clipping)
+    const comp = audioCtx.createDynamicsCompressor();
+    comp.threshold.value = -12;
+    comp.knee.value = 12;
+    comp.ratio.value = 6;
+    comp.attack.value = 0.003;
+    comp.release.value = 0.15;
+    const bus = audioCtx.createGain();
+    bus.gain.value = 1.0;
+    bus.connect(comp);
+    comp.connect(audioCtx.destination);
+    masterBus = bus;
+  }
+}
+
+function collisionTone(impactSpeed, freq, pitchMul, wave, vol, sample) {
+  ensureAudio();
+  if (!audioCtx) return;
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  const t = audioCtx.currentTime;
+  if (t - lastToneTime < 0.025) return;         // rate-limit
+  lastToneTime = t;
+
+  const f = freq * pitchMul;                    // exact: geen random-detune meer
+  const vel = Math.min(1, Math.max(0, impactSpeed / 10));
+
+  const gain = audioCtx.createGain();
+  const velGain = Math.pow(10, synth.velDepthDb * (1 - vel) / 20);
+  const peak = BASE_LEVEL * velGain * MASTER * vol;   // volume per spawner
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.linearRampToValueAtTime(peak, t + Math.max(0.001, synth.attack));
+  gain.gain.setTargetAtTime(SUSTAIN * peak, t + synth.attack, Math.max(0.001, synth.decay));
+  gain.gain.setTargetAtTime(0.0001, t + synth.attack + GATE, Math.max(0.001, synth.release));
+  const stop = t + synth.attack + GATE + synth.release * 6 + 0.3;
+
+  // golfvorm "Sample": de eigen microfoon-opname, gepitcht op de ladder
+  // (zelfde ADR-envelope als de tonen; zonder opname valt het terug op sinus)
+  if (wave === WAVE_SAMPLE && sample && sample.data && sample.data.length > 0) {
+    if (!sample.buffer) {
+      const buf = audioCtx.createBuffer(1, sample.data.length, sample.sr || audioCtx.sampleRate);
+      buf.copyToChannel(sample.data, 0);
+      sample.buffer = buf;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = sample.buffer;
+    src.playbackRate.value = Math.max(0.25, Math.min(4, f / sample.baseFreq));
+    src.connect(gain);
+    gain.connect(masterBus);              // via de compressor-bus: geen kraak
+    src.start(t); src.stop(stop);
+    return;
+  }
+
+  const w = WAVE_TYPES[wave] || "sine";
+  const osc = audioCtx.createOscillator();
+  osc.type = w;
+  osc.frequency.value = f;
+  const osc2 = audioCtx.createOscillator();    // lichte 2e harmonische
+  osc2.type = "sine";
+  osc2.frequency.value = f * 2;
+  const gain2 = audioCtx.createGain();
+  gain2.gain.value = WAVE_HARM[wave] || 0.3;
+
+  osc.connect(gain);
+  osc2.connect(gain2); gain2.connect(gain);
+  gain.connect(masterBus);              // via de compressor-bus: geen kraak
+  osc.start(t); osc.stop(stop);
+  osc2.start(t); osc2.stop(stop);
+}
+
+/* ------------------------------------------------- ballen spawnen */
+let persistentCount = 10;
+function spawnBall(sp) {
+  let slot = balls.find(b => !b.active);
+  if (!slot) {
+    // pool vol: oudste gespawnde bal hergebruiken
+    let oldest = null;
+    for (const b of balls) if (b.spawned && (!oldest || b.born < oldest.born)) oldest = b;
+    if (!oldest) return;
+    slot = oldest;
+  }
+  slot.active = true; slot.spawned = true; slot.born = performance.now();
+  // volledig deterministisch: zelfde startpunt, zelfde richting, geen timing-variatie
+  const a = sp.angle * Math.PI / 180;
+  slot.x = sp.x; slot.y = sp.y;
+  slot.vx = sp.speed * Math.cos(a);
+  slot.vy = sp.speed * Math.sin(a);
+  slot.r = sp.size;
+  slot.hue = sp.hue;
+  slot.note = sp.note;
+  slot.wave = sp.wave;
+  slot.vol = sp.vol;
+  slot.spId = sp.id;
+  slot.angle = 0;
+  slot.spin = 40;
+  slot.flash = 0;
+  if (!slot.colorBuf) slot.colorBuf = gl.createBuffer();
+  uploadBallColors(slot, hslToRgb(slot.hue, 0.75, 0.5), hslToRgb(slot.hue + 180, 0.85, 0.62));
+}
+
+function resetPersistent() {
+  // gespawnde ballen laten we staan; persistente ballen opnieuw laten vallen
+  for (const b of balls) if (!b.spawned) b.active = false;
+  for (let i = 0; i < persistentCount; i++) {
+    const b = balls.find(b => !b.active);
+    if (!b) break;
+    b.active = true; b.spawned = false; b.born = performance.now();
+    b.x = (i - (persistentCount - 1) / 2) * 0.9;
+    b.y = 7 + (i % 5) * 0.5;
+    b.vx = (Math.random() - 0.5) * 0.5;
+    b.vy = 0;
+    b.r = 0.6;
+    b.hue = (i * 137.5) % 360;
+    b.note = defaultNote(i + 1);
+    b.wave = 0;
+    b.vol = 1;
+    b.spId = 0;
+    b.angle = Math.random() * 360;
+    b.spin = 40;
+    b.flash = 0;
+    if (!b.colorBuf) b.colorBuf = gl.createBuffer();
+    uploadBallColors(b, hslToRgb(b.hue, 0.75, 0.5), hslToRgb(b.hue + 180, 0.85, 0.62));
+  }
+}
+
+/* ------------------------------------------------- physics */
+function collideBallWall(b, w, dt) {
+  const dx1 = w.x1 - w.x0, dy1 = w.y1 - w.y0;
+  const len2 = dx1 * dx1 + dy1 * dy1;
+  let t = len2 > 1e-9 ? ((b.x - w.x0) * dx1 + (b.y - w.y0) * dy1) / len2 : 0;
+  t = Math.max(0, Math.min(1, t));
+  const cx = w.x0 + dx1 * t, cy = w.y0 + dy1 * t;
+  let dx = b.x - cx, dy = b.y - cy;
+  let d = Math.hypot(dx, dy);
+  const minD = b.r + WALL_HALF;
+  if (d >= minD) return false;
+  if (d < 1e-6) { dx = 0; dy = 1; d = 1; }
+  const nx = dx / d, ny = dy / d;
+  b.x = cx + nx * minD;
+  b.y = cy + ny * minD;
+  const vn = b.vx * nx + b.vy * ny;
+  if (vn < 0) {
+    const impact = -vn;
+    let vnAfter;
+    if (impact < REST_SPEED) vnAfter = 0;                  // rust / glijden
+    else vnAfter = impact * w.rest;                        // bounce
+    const tx = -ny, ty = nx;
+    let vt = b.vx * tx + b.vy * ty;
+    const fr = Math.max(0, 1 - CONTACT_FRICTION * dt);
+    vt *= fr;                                              // wrijving op het oppervlak
+    b.vx = tx * vt + nx * vnAfter;
+    b.vy = ty * vt + ny * vnAfter;
+    b.spin = vt / b.r * 57.2958;                           // rollen
+    if (impact > MIN_TONE_SPEED) {
+      collisionTone(impact, b.note, 0.5, b.wave, b.vol, spawnerSample(b.spId));   // muur = octaaf lager
+      b.note = ladderStepDown(b.note);            // per muurhit 1 trap op de ladder lager
+    }
+    if (impact > MIN_FLASH_SPEED) b.flash = Math.min(1, 0.3 + impact * 0.12);
+  }
+  return true;
+}
+
+function stepPhysics(dt) {
+  // spawners: timer -= (i.p.v. = 0) houdt het ritme exact op het interval-grid
+  for (const sp of spawners) {
+    sp.timer += dt;
+    if (sp.timer >= sp.interval) { sp.timer -= sp.interval; spawnBall(sp); }
+  }
+
+  // integratie
+  const drag = Math.max(0, 1 - AIR_DRAG * dt);
+  for (const b of balls) {
+    if (!b.active) continue;
+    b.vy -= GRAVITY * dt;
+    b.vx *= drag; b.vy *= drag;
+    b.x += b.vx * dt; b.y += b.vy * dt;
+    b.angle = (b.angle + b.spin * dt) % 360;
+    if (Math.abs(b.vx) + Math.abs(b.vy) < REST_SPEED) b.spin *= 0.9;
+  }
+
+  // muur-botsingen
+  for (const b of balls) {
+    if (!b.active) continue;
+    for (const w of walls) collideBallWall(b, w, dt);
+  }
+
+  // bal-bal-botsingen zijn bewust weg: ballen botsen alleen op muren
+
+  // plafond + despawn
+  for (const b of balls) {
+    if (!b.active) continue;
+    const sp = Math.hypot(b.vx, b.vy);
+    if (sp > MAX_SPEED) { const s = MAX_SPEED / sp; b.vx *= s; b.vy *= s; }
+    if (b.y + b.r < DESPAWN_Y || Math.abs(b.x) - b.r > DESPAWN_X) b.active = false;
+  }
+}
+
+/* ------------------------------------------------- camera + projectie */
+const cam = { azimuth: 0.35, elevation: 0.18, distance: 17 };
+let camAxis = null, eye = [0, 0, 17];
+const TANH = Math.tan(25 * Math.PI / 180);
+
+function planePoint(clientX, clientY) {
+  // ray door de pixel -> snijpunt met het speelvlak (z = 0)
+  const nx = clientX / innerWidth * 2 - 1;
+  const ny = 1 - clientY / innerHeight * 2;
+  const aspect = canvas.width / Math.max(1, canvas.height);
+  const d = [
+    camAxis.x[0] * nx * TANH * aspect + camAxis.y[0] * ny * TANH - camAxis.z[0],
+    camAxis.x[1] * nx * TANH * aspect + camAxis.y[1] * ny * TANH - camAxis.z[1],
+    camAxis.x[2] * nx * TANH * aspect + camAxis.y[2] * ny * TANH - camAxis.z[2]
+  ];
+  const l = Math.hypot(d[0], d[1], d[2]);
+  d[0] /= l; d[1] /= l; d[2] /= l;
+  if (Math.abs(d[2]) < 1e-4) return null;
+  const t = -eye[2] / d[2];
+  if (t <= 0.1) return null;
+  return [eye[0] + d[0] * t, eye[1] + d[1] * t];
+}
+
+/* ------------------------------------------------- input & modi */
+let mode = "play";     // "play" | "spawner" | "wall"
+const pointers = new Map();
+let gesture = null;
+let lastTapTime = 0;
+let dragWall = null;                    // muur-voorbeeld tijdens het tekenen
+
+function selectAt(p) {
+  if (!p) { selected = null; syncSelPanel(); return; }
+  // klik-tolerantie in wereld-eenheden, geschaald met de camera-afstand:
+  // ook als je ver uitgezoomd bent blijft tikken ~28 px nauwkeurig
+  const grab = Math.max(0.55, cam.distance * 0.04);
+  // dichtstbijzijnde spawner (radius houdt de grootte van de marker aan)
+  let bestSp = null, bestSpD = Infinity;
+  for (const sp of spawners) {
+    const d = Math.hypot(sp.x - p[0], sp.y - p[1]);
+    if (d < bestSpD) { bestSp = sp; bestSpD = d; }
+  }
+  if (bestSp && bestSpD > Math.max(0.9 + bestSp.size * 0.5, grab)) bestSp = null;
+  // dichtstbijzijnde muur (afstand tot het lijnstuk)
+  let bestW = null, bestWD = Infinity;
+  for (const w of walls) {
+    const dx1 = w.x1 - w.x0, dy1 = w.y1 - w.y0;
+    const len2 = dx1 * dx1 + dy1 * dy1;
+    let t = len2 > 1e-9 ? ((p[0] - w.x0) * dx1 + (p[1] - w.y0) * dy1) / len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const d = Math.hypot(p[0] - (w.x0 + dx1 * t), p[1] - (w.y0 + dy1 * t));
+    if (d < bestWD) { bestW = w; bestWD = d; }
+  }
+  if (bestW && bestWD > grab) bestW = null;
+  // spawner heeft voorkeur bij gelijke afstand
+  if (bestSp && (!bestW || bestSpD < bestWD + 0.3)) {
+    selected = { kind: "spawner", id: bestSp.id };
+  } else if (bestW) {
+    selected = { kind: "wall", id: bestW.id };
+  } else selected = null;
+  syncSelPanel();
+}
+
+function pushBalls(p, delta) {
+  if (!p) return;
+  for (const b of balls) {
+    if (!b.active) continue;
+    const d = Math.hypot(b.x - p[0], b.y - p[1]);
+    if (d > SWIPE_RADIUS + b.r) continue;
+    const falloff = 1 - Math.max(0, d - b.r) / SWIPE_RADIUS;
+    b.vx += delta[0] * SWIPE_GAIN * falloff;
+    b.vy += delta[1] * SWIPE_GAIN * falloff;
+  }
+}
+
+canvas.addEventListener("pointerdown", (e) => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pointers.size === 2) {
+    const [p1, p2] = [...pointers.values()];
+    gesture = {
+      kind: "pinch",
+      dist: Math.hypot(p1.x - p2.x, p1.y - p2.y),
+      mx: (p1.x + p2.x) / 2, my: (p1.y + p2.y) / 2
+    };
+  } else if (pointers.size === 1) {
+    if (mode === "wall") {
+      const p = planePoint(e.clientX, e.clientY);
+      if (p) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+      gesture = { kind: "wall" };
+    } else if (mode === "play") {
+      gesture = {
+        kind: "swipe", last: planePoint(e.clientX, e.clientY),
+        sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
+      };
+    } else {   // spawner-modus: slepen = camera, lang indrukken = plaatsen
+      const g = {
+        kind: "spawnerGesture", sx: e.clientX, sy: e.clientY,
+        t0: performance.now(), moved: false, placed: false,
+        timer: setTimeout(() => {
+          if (!g.moved) {
+            const p = planePoint(g.sx, g.sy);
+            if (p) {
+              const sp = addSpawner(p[0], p[1]);
+              selected = { kind: "spawner", id: sp.id };
+              syncSelPanel();
+              g.placed = true;
+            }
+          }
+        }, 450)
+      };
+      gesture = g;
+    }
+  }
+});
+
+canvas.addEventListener("pointermove", (e) => {
+  const pt = pointers.get(e.pointerId);
+  if (!pt) return;
+  pt.x = e.clientX; pt.y = e.clientY;
+  if (!gesture) return;
+  if (gesture.kind === "pinch") {
+    const [p1, p2] = [...pointers.values()];
+    if (!p2) return;
+    const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+    if (gesture.dist > 1) cam.distance = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, cam.distance * gesture.dist / d));
+    gesture.dist = d;
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    cam.azimuth -= (mx - gesture.mx) * 0.008;
+    cam.elevation = Math.max(-1.45, Math.min(1.45, cam.elevation + (my - gesture.my) * 0.008));
+    gesture.mx = mx; gesture.my = my;
+  } else if (gesture.kind === "wall") {
+    const p = planePoint(e.clientX, e.clientY);
+    if (p && dragWall) { dragWall.x1 = p[0]; dragWall.y1 = p[1]; }
+  } else if (gesture.kind === "swipe") {
+    const p = planePoint(e.clientX, e.clientY);
+    if (p && gesture.last) {
+      const dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
+      if (Math.hypot(dx, dy) > 10) gesture.moved = true;
+      pushBalls(p, [p[0] - gesture.last[0], p[1] - gesture.last[1]]);
+      gesture.last = p;
+    }
+  } else if (gesture.kind === "spawnerGesture") {
+    const dx = e.clientX - gesture.sx, dy = e.clientY - gesture.sy;
+    if (Math.hypot(dx, dy) > 12) {
+      gesture.moved = true;
+      clearTimeout(gesture.timer);
+      cam.azimuth -= e.movementX * 0.008;
+      cam.elevation = Math.max(-1.45, Math.min(1.45, cam.elevation + e.movementY * 0.008));
+    }
+  }
+});
+
+function endPointer(e) {
+  pointers.delete(e.pointerId);
+  const g = gesture;
+  if (pointers.size > 0) {
+    if (g && g.kind === "pinch" && pointers.size === 1) gesture = { kind: "orbit" };
+    return;
+  }
+  gesture = null;
+  const held = performance.now() - (g ? g.t0 : 0);
+  if (g && g.kind === "wall" && dragWall) {
+    const len = Math.hypot(dragWall.x1 - dragWall.x0, dragWall.y1 - dragWall.y0);
+    if (len > 0.5) {
+      const w = addWall(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, 0.85);
+      selected = { kind: "wall", id: w.id };
+      syncSelPanel();
+    } else {
+      // alleen tikken (niet slepen) in Muur-modus = selecteren, net als in Play
+      selectAt(planePoint(e.clientX, e.clientY));
+    }
+    dragWall = null;
+  } else if (g && g.kind === "swipe") {
+    if (!g.moved && held < 300) {
+      const p = planePoint(e.clientX, e.clientY);
+      const now = performance.now();
+      if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
+      else { selectAt(p); lastTapTime = now; }
+    }
+  } else if (g && g.kind === "spawnerGesture") {
+    clearTimeout(g.timer);
+    if (!g.moved && !g.placed && held < 300) {
+      const p = planePoint(e.clientX, e.clientY);
+      const now = performance.now();
+      if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
+      else { selectAt(p); lastTapTime = now; }
+    }
+  }
+}
+canvas.addEventListener("pointerup", endPointer);
+canvas.addEventListener("pointercancel", endPointer);
+
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  cam.distance = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, cam.distance * Math.exp(e.deltaY * 0.001)));
+}, { passive: false });
+
+/* ------------------------------------------------- UI-panel */
+const $ = id => document.getElementById(id);
+function fmtTime(sec) {
+  return sec < 1 ? Math.round(sec * 1000) + " ms" : sec.toFixed(2) + " s";
+}
+function bind(id, out, apply) {
+  const el = $(id), o = $(out);
+  const upd = () => { o.textContent = apply(+el.value); };
+  el.addEventListener("input", upd);
+  upd();
+  return el;
+}
+bind("atk", "atkV", p => fmtTime(synth.attack = p * 2 / 1000));
+bind("dcy", "dcyV", p => fmtTime(synth.decay = 0.01 * Math.pow(200, p / 100)));
+bind("rel", "relV", p => fmtTime(synth.release = 0.01 * Math.pow(200, p / 100)));
+bind("vel", "velV", p => {
+  synth.velDepthDb = -p * 24 / 100;
+  return synth.velDepthDb > -0.5 ? "0 dB (geen)" : synth.velDepthDb.toFixed(1) + " dB";
+});
+bind("cnt", "cntV", p => { persistentCount = p + 1; return String(persistentCount); });
+// ballen pas opnieuw laten vallen als de gebruiker de slider echt beweegt
+$("cnt").addEventListener("input", () => resetPersistent());
+// globale toonladder (5 standaard ladders, allemaal op A)
+bind("scale", "scaleV", p => { setScale(+p); return SCALES[scaleIdx].name; });
+
+for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
+  $(id).addEventListener("click", () => {
+    mode = m;
+    document.querySelectorAll(".modes button").forEach(b => b.classList.remove("active"));
+    $(id).classList.add("active");
+  });
+}
+
+// selectie-panel synchroniseren (los paneel: alleen zichtbaar bij een selectie)
+let syncing = false;
+function setSlider(el, p) { syncing = true; el.value = p; el.dispatchEvent(new Event("input")); syncing = false; }
+function updateRecRow(obj) {
+  const show = !!(obj && selected && selected.kind === "spawner" && obj.wave === WAVE_SAMPLE);
+  $("recBtn").classList.toggle("hidden", !show);
+  $("recStatus").classList.toggle("hidden", !show);
+}
+function syncSelPanel() {
+  const obj = selected ? findSelected(selected.kind, selected.id) : null;
+  if (!obj) {
+    // niks geselecteerd: helemáál niks laten zien
+    $("selPanel").style.display = "none";
+    return;
+  }
+  $("selPanel").style.display = "block";
+  $("delBtn").classList.remove("hidden");
+  if (selected.kind === "spawner") {
+    $("selTitle").textContent = "Spawner " + selected.id;
+    $("rowInt").classList.remove("hidden");
+    $("rowSize").classList.remove("hidden");
+    $("rowAngle").classList.remove("hidden");
+    $("rowSpeed").classList.remove("hidden");
+    $("rowVolume").classList.remove("hidden");
+    $("rowPitch").classList.remove("hidden");
+    $("rowWave").classList.remove("hidden");
+    $("rowBounce").classList.add("hidden");
+    setSlider($("sInt"), Math.round(100 * Math.log(obj.interval / 0.25) / Math.log(20)));
+    setSlider($("sSize"), Math.round((obj.size - 0.3) / 0.9 * 100));
+    setSlider($("sAngle"), Math.round(obj.angle / 3.6));
+    setSlider($("sSpeed"), Math.round(obj.speed / 0.2));
+    setSlider($("sVolume"), Math.round(obj.vol * 100));
+    setSlider($("sPitch"), Math.round(ladderIndexBelow(obj.note) / ladderMax() * 100));
+    setSlider($("sWave"), Math.round(obj.wave * 100 / 4));
+    $("sIntV").textContent = fmtTime(obj.interval);
+    $("sSizeV").textContent = "r " + obj.size.toFixed(2);
+    $("sAngleV").textContent = Math.round(obj.angle) + "°";
+    $("sSpeedV").textContent = obj.speed.toFixed(1);
+    $("sVolumeV").textContent = Math.round(obj.vol * 100) + "%";
+    $("sPitchV").textContent = noteNameFromFreq(obj.note) + " · " + Math.round(obj.note) + " Hz";
+    $("sWaveV").textContent = WAVE_NAMES[obj.wave];
+    updateRecRow(obj);
+    $("recStatus").textContent = obj.sample
+      ? "Sample: " + fmtTime(obj.sample.data.length / (obj.sample.sr || 48000))
+      : "Nog geen sample";
+  } else {
+    $("selTitle").textContent = "Muur " + selected.id;
+    $("rowInt").classList.add("hidden");
+    $("rowSize").classList.add("hidden");
+    $("rowAngle").classList.add("hidden");
+    $("rowSpeed").classList.add("hidden");
+    $("rowVolume").classList.add("hidden");
+    $("rowPitch").classList.add("hidden");
+    $("rowWave").classList.add("hidden");
+    $("rowBounce").classList.remove("hidden");
+    updateRecRow(null);
+    setSlider($("sBounce"), Math.round((obj.rest - 0.05) / 1.95 * 100));
+    $("sBounceV").textContent = "×" + obj.rest.toFixed(2);
+  }
+}
+$("sInt").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.interval = 0.25 * Math.pow(20, +e.target.value / 100);
+  $("sIntV").textContent = fmtTime(obj ? obj.interval : 0);
+});
+$("sSize").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.size = 0.3 + 0.9 * +e.target.value / 100;
+  $("sSizeV").textContent = "r " + (obj ? obj.size.toFixed(2) : "0");
+});
+$("sAngle").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.angle = +e.target.value * 3.6;
+  $("sAngleV").textContent = Math.round(obj ? obj.angle : 270) + "°";
+});
+$("sSpeed").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.speed = +e.target.value * 0.2;          // 0..20
+  $("sSpeedV").textContent = (obj ? obj.speed : 0).toFixed(1);
+});
+$("sVolume").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.vol = +e.target.value / 100;            // 0..1
+  $("sVolumeV").textContent = Math.round((obj ? obj.vol : 1) * 100) + "%";
+});
+$("sPitch").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.note = ladderFreq(Math.round(+e.target.value * ladderMax() / 100));
+  $("sPitchV").textContent =
+    noteNameFromFreq(obj ? obj.note : 440) + " · " + Math.round(obj ? obj.note : 440) + " Hz";
+});
+$("sWave").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) obj.wave = Math.round(+e.target.value * 4 / 100);   // 5 presets incl. Sample
+  $("sWaveV").textContent = WAVE_NAMES[obj ? obj.wave : 0];
+  updateRecRow(obj);
+});
+$("sBounce").addEventListener("input", e => {
+  if (syncing) return;
+  const obj = selected && findSelected(selected.kind, selected.id);
+  if (obj) { obj.rest = 0.05 + 1.95 * +e.target.value / 100; obj.dirty = true; }
+  $("sBounceV").textContent = obj ? "×" + obj.rest.toFixed(2) : "×1.00";
+});
+$("delBtn").addEventListener("click", deleteSelected);
+
+/* ------------------------------------------------- microfoon-sample opnemen
+ * Golfvorm "Sample" per spawner: houd de opnameknop ingedrukt om op te
+ * nemen, laat los om te stoppen. De opname wordt de basis-noot van de
+ * spawner op dat moment gepitched (zelfde ladder als alle tonen). */
+let recState = null;        // actieve opname of null
+let recPendingStop = false;
+function recStatus(msg) { $("recStatus").textContent = msg; }
+async function startRecording() {
+  const obj = selected && selected.kind === "spawner" ? findSelected("spawner", selected.id) : null;
+  if (!obj || recState) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { recStatus("Microfoon niet beschikbaar"); return; }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (err) {
+    // verschillende oorzaken krijgen een eigen melding, zodat je weet wat
+    // je moet doen in plaats van algemeen "geweigerd"
+    const naam = err && err.name ? err.name : "";
+    if (naam === "NotFoundError" || naam === "OverconstrainedError" ||
+        naam === "DevicesNotFoundError") {
+      recStatus("Geen microfoon gevonden op dit apparaat");
+    } else if (naam === "NotReadableError" || naam === "TrackStartError") {
+      recStatus("Microfoon is bezet: sluit andere apps die hem gebruiken");
+    } else if (location.protocol === "content:") {
+      // via de bestandsmanager geopend (Android): content:// is géén beveiligde
+      // origin, dus de browser vraagt het nooit en er is ook geen slot-icoon
+      recStatus("Microfoon gaat niet op een via de bestandsmanager geopende " +
+        "pagina (content://). Open de preview via https of localhost, " +
+        "of test de Sample-golf in de Android-app zelf.");
+    } else if (window.self !== window.top || !window.isSecureContext) {
+      // iframe zonder microfoon-toegang, of geen beveiligde context:
+      // dan vraagt de browser het niet eens meer, hoe vaak je ook drukt
+      recStatus("Deze pagina mag de microfoon niet gebruiken (kader/" +
+        "onveilige context). Open het bestand apart in je browser " +
+        "(apart tabblad) en sta de microfoon toe.");
+    } else {
+      // echte weigering op een https-pagina: site-instellingen of adresbalk
+      recStatus("Microfoon geweigerd: zet hem aan via het slot-icoon naast " +
+        "de adresbalk (of site-instellingen, Microfoon: Toestaan) en " +
+        "druk nog een keer.");
+    }
+    return;
+  }
+  ensureAudio();
+  if (!audioCtx) { recStatus("Audio niet beschikbaar"); stream.getTracks().forEach(t => t.stop()); return; }
+  if (recPendingStop) { recPendingStop = false; stream.getTracks().forEach(t => t.stop()); return; }
+  const src = audioCtx.createMediaStreamSource(stream);
+  const proc = audioCtx.createScriptProcessor(4096, 1, 1);
+  const chunks = [];
+  proc.onaudioprocess = e => {
+    if (chunks.length < 120) chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));   // max ~10 s
+  };
+  const silent = audioCtx.createGain(); silent.gain.value = 0;   // proc draait pas met een uitgang
+  src.connect(proc); proc.connect(silent); silent.connect(audioCtx.destination);
+  recState = { stream, src, proc, silent, chunks, baseFreq: obj.note, sr: audioCtx.sampleRate };
+  $("recBtn").classList.add("recording");
+  $("recBtn").textContent = "Opnemen… (laat los om te stoppen)";
+}
+function stopRecording() {
+  const st = recState;
+  if (!st) { recPendingStop = true; setTimeout(() => recPendingStop = false, 1000); return; }
+  recState = null;
+  try { st.proc.disconnect(); st.src.disconnect(); st.silent.disconnect(); st.stream.getTracks().forEach(t => t.stop()); } catch (err) {}
+  $("recBtn").classList.remove("recording");
+  $("recBtn").textContent = "Houd in om op te nemen";
+  let len = 0; for (const c of st.chunks) len += c.length;
+  if (len < 64) { recStatus("Te kort, houd langer ingedrukt"); return; }
+  const data = new Float32Array(len);
+  let o = 0; for (const c of st.chunks) { data.set(c, o); o += c.length; }
+  const obj = selected && selected.kind === "spawner" ? findSelected("spawner", selected.id) : null;
+  if (!obj) return;
+  obj.sample = { data, baseFreq: st.baseFreq, sr: st.sr, buffer: null };
+  recStatus("Sample: " + fmtTime(len / st.sr));
+}
+$("recBtn").addEventListener("pointerdown", e => { e.preventDefault(); startRecording(); });
+$("recBtn").addEventListener("pointerup", stopRecording);
+$("recBtn").addEventListener("pointerleave", stopRecording);
+$("recBtn").addEventListener("pointercancel", stopRecording);
+
+/* ------------------------------------------------- opslaan / laden / reset */
+const SAVE_KEY = "bollenmachine";
+function status(msg) {
+  $("saveStatus").textContent = msg;
+  setTimeout(() => { if ($("saveStatus").textContent === msg) $("saveStatus").textContent = ""; }, 2000);
+}
+/* sample als base64 Int16-PCM (max 5 s), zodat opnames meegaan in de opslag */
+function sampleToB64(smp) {
+  if (!smp || !smp.data || !smp.data.length) return null;
+  const n = Math.min(smp.data.length, 48000 * 5);
+  const i16 = new Int16Array(n);
+  for (let i = 0; i < n; i++) {
+    const v = Math.round(smp.data[i] * 32767);
+    i16[i] = v < -32768 ? -32768 : (v > 32767 ? 32767 : v);
+  }
+  const u8 = new Uint8Array(i16.buffer);
+  let bin = "";
+  for (let i = 0; i < u8.length; i += 8192)
+    bin += String.fromCharCode.apply(null, u8.subarray(i, i + 8192));
+  return { sr: smp.sr || 48000, base: smp.baseFreq, b: btoa(bin) };
+}
+function b64ToSample(o) {
+  if (!o || !o.b) return null;
+  try {
+    const bin = atob(o.b);
+    const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const i16 = new Int16Array(u8.buffer, 0, Math.floor(u8.length / 2));
+    const data = new Float32Array(i16.length);
+    for (let i = 0; i < data.length; i++) data[i] = i16[i] / 32767;
+    return { data, baseFreq: +o.base || 440, sr: o.sr || 48000, buffer: null };
+  } catch (err) { return null; }
+}
+function disposeWorldGl() {
+  // GL-buffers van de oude wereld netjes vrijgeven
+  for (const sp of spawners) {
+    if (sp.colorBuf) gl.deleteBuffer(sp.colorBuf);
+    if (sp.arrowBuf) gl.deleteBuffer(sp.arrowBuf);
+  }
+  for (const w of walls) if (w.colorBuf) gl.deleteBuffer(w.colorBuf);
+}
+function serializeWorld() {
+  return JSON.stringify({
+    v: 2,
+    scale: scaleIdx,
+    spawners: spawners.map(sp => ({
+      x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
+      interval: sp.interval, size: sp.size, angle: sp.angle,
+      speed: sp.speed, vol: sp.vol, note: sp.note, wave: sp.wave,
+      smp: sampleToB64(sp.sample)
+    })),
+    walls: walls.map(w => ({
+      x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest
+    })),
+    cnt: persistentCount,
+    cam: { az: cam.azimuth, el: cam.elevation, dist: cam.distance },
+    synth: { attack: synth.attack, decay: synth.decay, release: synth.release, velDb: synth.velDepthDb }
+  });
+}
+function applyWorld(o) {
+  disposeWorldGl();
+  spawners.length = 0;
+  walls.length = 0;
+  // ladder eerst terugzetten (zonder remappen): de opgeslagen noten
+  // horen al bij deze ladder
+  if (o.scale !== undefined) scaleIdx = Math.max(0, Math.min(SCALES.length - 1, o.scale | 0));
+  for (const s of (o.spawners || [])) {
+    const sp = addSpawner(s.x, s.y);
+    sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
+    sp.speed = s.speed; sp.vol = s.vol; sp.note = s.note; sp.wave = s.wave;
+    sp.sample = b64ToSample(s.smp);
+  }
+  for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest);
+  for (const b of balls) { b.active = false; b.spawned = false; }
+  if (o.cnt !== undefined) {
+    persistentCount = Math.max(0, Math.min(25, o.cnt | 0));
+    setSlider($("cnt"), persistentCount - 1);   // vuurt de listener: ballen vallen weer
+  }
+  if (o.cam) {
+    cam.azimuth = o.cam.az; cam.elevation = o.cam.el;
+    cam.distance = Math.max(CAM_MIN_DIST, Math.min(CAM_MAX_DIST, o.cam.dist));
+  }
+  if (o.synth) {
+    synth.attack = o.synth.attack; synth.decay = o.synth.decay;
+    synth.release = o.synth.release; synth.velDepthDb = o.synth.velDb;
+    setSlider($("atk"), Math.round(synth.attack * 1000 / 2));
+    setSlider($("dcy"), Math.round(100 * Math.log(synth.decay / 0.01) / Math.log(200)));
+    setSlider($("rel"), Math.round(100 * Math.log(synth.release / 0.01) / Math.log(200)));
+    setSlider($("vel"), Math.round(-synth.velDepthDb * 100 / 24));
+  }
+  setSlider($("scale"), scaleIdx);   // label sync (setScale merkt zelf dat idx gelijk blijft)
+  selected = null;
+  syncSelPanel();
+  status("Creatie teruggezet");
+}
+function saveWorld() {
+  try {
+    localStorage.setItem(SAVE_KEY, serializeWorld());
+    status("Opgeslagen");
+  } catch (err) { status("Opslaan mislukt"); }
+}
+function loadWorld() {
+  let s = null;
+  try { s = localStorage.getItem(SAVE_KEY); } catch (err) {}
+  if (!s) { status("Nog niets opgeslagen"); return; }
+  try { applyWorld(JSON.parse(s)); }
+  catch (err) { status("Opslag onleesbaar"); }
+}
+function resetWorld() {
+  disposeWorldGl();
+  spawners.length = 0;
+  walls.length = 0;
+  for (const b of balls) { b.active = false; b.spawned = false; }
+  selected = null;
+  syncSelPanel();
+  status("Canvas geleegd");
+}
+$("btnSave").addEventListener("click", saveWorld);
+$("btnLoad").addEventListener("click", loadWorld);
+$("btnReset").addEventListener("click", resetWorld);
+
+// inklapbaar settings-panel (start ingeklapt: leeg canvas)
+$("panelBody").classList.add("hidden");
+$("panelToggle").textContent = "Instellingen ▸";
+$("panelToggle").addEventListener("click", () => {
+  const collapsed = $("panelBody").classList.toggle("hidden");
+  $("panelToggle").textContent = collapsed ? "Instellingen ▸" : "Instellingen ▾";
+});
+syncSelPanel();
+
+/* ------------------------------------------------- render-loop */
+const mvpScratch = new Float32Array(16), modelScratch = new Float32Array(16);
+function setMatrices(model, view, proj) {
+  const mvp = mat4Multiply(proj, mat4Multiply(view, model));
+  for (let i = 0; i < 16; i++) { modelScratch[i] = model[i]; mvpScratch[i] = mvp[i]; }
+  gl.uniformMatrix4fv(uMVP, false, mvpScratch);
+  gl.uniformMatrix4fv(uModel, false, modelScratch);
+}
+
+function drawWallModel(x0, y0, x1, y1, colorBuf, preview) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const len = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const model = mat4Multiply(
+    mat4Translate((x0 + x1) / 2, (y0 + y1) / 2, 0),
+    mat4Multiply(mat4RotZ(ang), mat4Scale(len / 2, WALL_HALF, WALL_DEPTH))
+  );
+  bindCubeAttribs();
+  setMatrices(model, view, proj);
+  gl.bindBuffer(gl.ARRAY_BUFFER, colorBuf);
+  gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+  gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+}
+
+/* effen kleur-upload voor kubus-modellen (pijlen e.d.) */
+function uploadSolidColors(buf, rgb) {
+  const data = new Float32Array(72);
+  for (let f = 0; f < 6; f++) {
+    const light = CUBE_FACE_LIGHT[f];
+    for (let v = 0; v < 4; v++) {
+      const d = (f * 4 + v) * 3;
+      data[d] = rgb[0] * light; data[d+1] = rgb[1] * light; data[d+2] = rgb[2] * light;
+    }
+  }
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+}
+
+let view, proj, lastSelKey = "";
+let lastT = performance.now();
+function frame() {
+  requestAnimationFrame(frame);
+  const now = performance.now();
+  let dt = (now - lastT) / 1000;
+  lastT = now;
+  if (dt < 0 || dt > 0.05) dt = 0.016;
+
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.floor(innerWidth * dpr) || canvas.height !== Math.floor(innerHeight * dpr)) {
+    canvas.width = Math.floor(innerWidth * dpr);
+    canvas.height = Math.floor(innerHeight * dpr);
+  }
+
+  // camera
+  eye = [
+    CENTER[0] + cam.distance * Math.cos(cam.elevation) * Math.sin(cam.azimuth),
+    CENTER[1] + cam.distance * Math.sin(cam.elevation),
+    CENTER[2] + cam.distance * Math.cos(cam.elevation) * Math.cos(cam.azimuth)
+  ];
+  camAxis = cameraAxes(eye, CENTER, [0, 1, 0]);
+  view = mat4View(camAxis, eye);
+  proj = mat4Perspective(50, canvas.width / Math.max(1, canvas.height), 0.1, 400);
+
+  stepPhysics(dt);
+
+  // flash-uitfading + kleuren opnieuw uploaden als nodig
+  const fd = Math.exp(-FLASH_DECAY * dt);
+  for (const b of balls) {
+    if (!b.active) continue;
+    if (b.flash > 0) {
+      b.flash *= fd;
+      if (b.flash < 0.01) b.flash = 0;
+      uploadBallColors(b, hslToRgb(b.hue, 0.75, 0.5), hslToRgb(b.hue + 180, 0.85, 0.62));
+    }
+  }
+
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0.05, 0.06, 0.09, 1.0);
+  gl.enable(gl.DEPTH_TEST);
+  gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.uniform3f(uLightDir, 0.5, 0.8, 0.6);
+
+  // backdrop
+  bindCubeAttribs();
+  gl.bindBuffer(gl.ARRAY_BUFFER, bdPosBuf);
+  gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bdNrmBuf);
+  gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, bdColBuf);
+  gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bdIdxBuf);
+  gl.enable(gl.CULL_FACE);
+  gl.disable(gl.CULL_FACE);   // backdrop mag van beide kanten
+  setMatrices(mat4Identity(), view, proj);
+  gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+  gl.enable(gl.CULL_FACE);
+
+  // muren
+  const selKey = selected ? selected.kind + ":" + selected.id : "";
+  if (selKey !== lastSelKey) {
+    for (const w of walls) w.dirty = true;   // selectie-highlight herberekenen
+    lastSelKey = selKey;
+  }
+  for (const w of walls) {
+    if (w.dirty || !w.uploadedOnce) {
+      w.color = wallColor(w);
+      uploadWallColors(w);
+      w.dirty = false;
+      w.uploadedOnce = true;
+    }
+    drawWallModel(w.x0, w.y0, w.x1, w.y1, w.colorBuf, false);
+  }
+
+  // muur-voorbeeld tijdens het tekenen
+  if (dragWall) {
+    const g = [0.6, 0.65, 0.75];
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    const data = new Float32Array(72);
+    for (let f = 0; f < 6; f++) {
+      const light = CUBE_FACE_LIGHT[f];
+      for (let v = 0; v < 4; v++) {
+        const d = (f * 4 + v) * 3;
+        data[d] = g[0] * light; data[d+1] = g[1] * light; data[d+2] = g[2] * light;
+      }
+    }
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    drawWallModel(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, buf, true);
+    gl.deleteBuffer(buf);
+  }
+
+  // richtingpijlen van spawners (platte chevrons in het speelvlak)
+  for (const sp of spawners) {
+    const isSelA = selected && selected.kind === "spawner" && selected.id === sp.id;
+    const ac = isSelA ? [0.95, 0.95, 1.0] : hslToRgb(sp.hue, 0.8, 0.6);
+    if (!sp.arrowBuf) sp.arrowBuf = gl.createBuffer();
+    uploadSolidColors(sp.arrowBuf, ac);
+    const a = sp.angle * Math.PI / 180;
+    const tx = sp.x + Math.cos(a) * 1.3, ty = sp.y + Math.sin(a) * 1.3;
+    drawWallModel(sp.x, sp.y, tx, ty, sp.arrowBuf, false);
+    const hA = a + 0.55, hB = a - 0.55;
+    drawWallModel(tx, ty, tx - Math.cos(hA) * 0.6, ty - Math.sin(hA) * 0.6, sp.arrowBuf, false);
+    drawWallModel(tx, ty, tx - Math.cos(hB) * 0.6, ty - Math.sin(hB) * 0.6, sp.arrowBuf, false);
+  }
+
+  // spawner-markers (grijze mini-bollen; geselecteerde pulseert)
+  bindSphereAttribs();
+  gl.disable(gl.CULL_FACE);
+  const tSec = now / 1000;
+  for (const sp of spawners) {
+    const isSel = selected && selected.kind === "spawner" && selected.id === sp.id;
+    const pulse = isSel ? 0.75 + 0.25 * Math.sin(tSec * 6) : 1.0;
+    const scale = 0.35 * (isSel ? 1.3 : 1.0);
+    // marker in de kleur van de spawner, gedempt grijs; geselecteerd pulseert
+    const mc = isSel ? [0.95, 0.95, 1.0] : hslToRgb(sp.hue, 0.25, 0.6);
+    for (let i = 0; i < sphereVertCount; i++) {
+      const roll = 0.8 + 0.35 * sphereNy[i];
+      ballColorScratch[i*3  ] = mc[0] * pulse * roll;
+      ballColorScratch[i*3+1] = mc[1] * pulse * roll;
+      ballColorScratch[i*3+2] = mc[2] * pulse * roll;
+    }
+    const buf = sp.colorBuf || (sp.colorBuf = gl.createBuffer());
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, ballColorScratch, gl.DYNAMIC_DRAW);
+    const model = mat4Multiply(
+      mat4Translate(sp.x, sp.y, 0),
+      mat4Multiply(mat4RotZ(tSec * 40), mat4Scale(scale, scale, scale))
+    );
+    setMatrices(model, view, proj);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+    gl.drawElements(gl.TRIANGLES, sphereIdx.length, gl.UNSIGNED_SHORT, 0);
+  }
+
+  // ballen
+  for (const b of balls) {
+    if (!b.active) continue;
+    const model = mat4Multiply(
+      mat4Translate(b.x, b.y, 0),
+      mat4Multiply(mat4RotZ(b.angle), mat4Scale(b.r, b.r, b.r))
+    );
+    setMatrices(model, view, proj);
+    gl.bindBuffer(gl.ARRAY_BUFFER, b.colorBuf);
+    gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+    gl.drawElements(gl.TRIANGLES, sphereIdx.length, gl.UNSIGNED_SHORT, 0);
+  }
+  gl.enable(gl.CULL_FACE);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
