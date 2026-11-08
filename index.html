@@ -104,7 +104,9 @@
   <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
   <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
   <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers, volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
+  <div class="row"><label for="fw">Veldbreedte</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
+  <div class="row"><label for="fh">Veldhoogte</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers, volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
   </div>
 </div>
 
@@ -154,9 +156,14 @@
      alles blijft consonant
    - de toonhoogte is ABSOLUUT: volledig bepaald door de plek op het
      canvas (midden van het veld = A4 = 440 Hz = midden van de piano);
-     de hoogte van het HELE veld (y -300 t/m 300) = het ingestelde
-     aantal octaven (Instellingen, standaard 4, 2 t/m 6), gekwantiseerd
-     op de ladder; zoomen verandert de toon dus NIET
+     de hoogte van het HELE veld (instelbare Veldhoogte, standaard 200)
+     = het ingestelde aantal octaven (Instellingen, standaard 4,
+     2 t/m 6), gekwantiseerd op de ladder; zoomen verandert de
+     toon dus NIET
+   - de afmetingen van het speelveld zijn instelbaar (Veldbreedte en
+     Veldhoogte, 100 t/m 600 per kant; standaard 200 x 200): ballen
+     despawnen net buiten de rand, de uitzoomgrens en de toonschaal
+     passen zich meteen aan
    - de camera draait niet meer rond (vaste kijkhoek): je kunt alleen
      in- en uitzoomen, richt op de plek onder je cursor of vingers
      (scrollen of 2 vingers); volledig uitgezoomd zie je het HELE
@@ -378,10 +385,20 @@ const GRAVITY = 10.0, AIR_DRAG = 0.05, MAX_SPEED = 20;   // = max afvuursnelheid
 const WALL_HALF = 0.15, WALL_DEPTH = 0.28;
 const CONTACT_FRICTION = 2.0;   // bal-bal-bounce is bewust weg
 const REST_SPEED = 0.6, MIN_TONE_SPEED = 0.8, MIN_FLASH_SPEED = 0.1;
-const FLASH_DECAY = 4.0, DESPAWN_Y = -300, DESPAWN_X = 300;
-/* grenzen van het speelveld (net buiten deze randen despawnen ballen);
- * dit is ook de maatstaf voor de maximale uitzoom, zie maxCamDist() */
-const FIELD_X = 300, FIELD_Y = 300;
+const FLASH_DECAY = 4.0;
+/* afmetingen van het speelveld, instelbaar in Instellingen: halve
+ * breedte/hoogte in wereld-eenheden. Standaard 100 = veld 200 x 200
+ * (ruim 3x kleiner dan het oude 600 x 600); max 300 = het oude veld.
+ * Net buiten deze randen despawnen ballen; dit is ook de maatstaf voor
+ * de maximale uitzoom (maxCamDist) en voor de toonhoogte-schaal. */
+let fieldHalfX = 100, fieldHalfY = 100;
+function setFieldSize(hx, hy) {
+  fieldHalfX = Math.max(50, Math.min(300, +hx || 100));
+  fieldHalfY = Math.max(50, Math.min(300, +hy || 100));
+  // het mikpunt kan buiten het verkleinde veld liggen: terug binnen de klemmen
+  camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, camTarget[0]));
+  camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, camTarget[1]));
+}
 /* ballen verdwijnen pas als ze VOLLEDIG buiten de speelruimte zijn
  * (rand van de bal voorbij de grens, niet het middelpunt) */
 const SWIPE_GAIN = 6.0, SWIPE_RADIUS = 2.5;
@@ -406,7 +423,7 @@ function noteNameFromFreq(f) {
  * ladder (zelfde hoogte = dichtstbijzijnde trap).
  * De toonhoogte van een bal is ABSOLUUT: volledig bepaald door de plek
  * op het canvas (midden van het veld = A4 = 440 Hz = midden van de
- * piano). De hoogte van het HELE veld (y -300 t/m 300, dus 600) = het
+ * piano). De hoogte van het HELE veld (instelbare Veldhoogte) = het
  * ingestelde aantal octaven; zoomen verandert de toon niet. */
 const SCALES = [
   { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
@@ -444,16 +461,16 @@ function ladderIndexBelow(f, sIdx, root) {
  * De toon van een bal wordt volledig bepaald door de plek op het canvas
  * (geen relatieve starttoon meer): het midden van het veld (y = CENTER_Y)
  * is het midden van de piano (A4 = 440 Hz, precies de middelste trede van
- * de ladder A1..A7), en de hoogte van het HELE veld (y -300 t/m 300) =
- * `octaves` octaven (Instellingen, standaard 4, 2 t/m 6). De doeltoon
+ * de ladder A1..A7), en de hoogte van het HELE veld (instelbaar in
+ * Instellingen met Veldhoogte, standaard 200) = `octaves` octaven
+ * (Instellingen, standaard 4, 2 t/m 6). De doeltoon
  * wordt op de dichtstbijzijnde ladder-trap gekwantiseerd. Zoomen
  * verandert de toon NIET meer: de schaal staat vast op de veldhoogte.
  * Spawners tactisch plaatsen is dus belangrijk: hoger op het
  * canvas = hogere toon. */
 const MID_F = 440;   // A4: midden van de piano = midden van de ladder
-const PITCH_H = 600; // vaste toonhoogte-referentie: hoogte van het hele veld (y -300..300)
 function posPitch(y) {
-  return ladderNearest(Math.max(ladderFreq(0), MID_F * Math.pow(2, (y - CENTER[1]) / PITCH_H * octaves)));
+  return ladderNearest(Math.max(ladderFreq(0), MID_F * Math.pow(2, (y - CENTER[1]) / (2 * fieldHalfY) * octaves)));
 }
 function ladderNearest(f) {
   const i = ladderIndexBelow(f);
@@ -843,7 +860,7 @@ function stepPhysics(dt) {
     if (!b.active) continue;
     const sp = Math.hypot(b.vx, b.vy);
     if (sp > MAX_SPEED) { const s = MAX_SPEED / sp; b.vx *= s; b.vy *= s; }
-    if (b.y + b.r < DESPAWN_Y || Math.abs(b.x) - b.r > DESPAWN_X) b.active = false;
+    if (b.y + b.r < -fieldHalfY || Math.abs(b.x) - b.r > fieldHalfX) b.active = false;
   }
 }
 
@@ -870,7 +887,7 @@ function maxCamDist() {
     [0, 0, 0], [0, 1, 0]);   // precies dezelfde assen als in de render-loop
   let m = 0;
   for (let sy = -1; sy <= 1; sy += 2) for (let sx = -1; sx <= 1; sx += 2) {
-    const qx = sx * FIELD_X - camTarget[0], qy = sy * FIELD_Y - camTarget[1];
+    const qx = sx * fieldHalfX - camTarget[0], qy = sy * fieldHalfY - camTarget[1];
     const wq = qx * ax.z[0] + qy * ax.z[1];   // hoekpunt . kijk-as (vlak z=0)
     const px = qx * ax.x[0] + qy * ax.x[1];   // scherm-x van het hoekpunt
     const py = qx * ax.y[0] + qy * ax.y[1];   // scherm-y van het hoekpunt
@@ -889,8 +906,8 @@ function zoomAtWorld(p, k) {
   const kk = nd / cam.distance;
   cam.distance = nd;
   if (!p || Math.abs(kk - 1) < 1e-9) return;
-  camTarget[0] = Math.max(-150, Math.min(150, p[0] + (camTarget[0] - p[0]) * kk));
-  camTarget[1] = Math.max(-100, Math.min(150, p[1] + (camTarget[1] - p[1]) * kk));
+  camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, p[0] + (camTarget[0] - p[0]) * kk));
+  camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, p[1] + (camTarget[1] - p[1]) * kk));
 }
 function zoomAt(clientX, clientY, k) {
   zoomAtWorld(planePoint(clientX, clientY), k);
@@ -1147,6 +1164,16 @@ bind("root", "rootV", p => { setRoot(+p); return rootName(); });
 bind("oct", "octV", p => {
   octaves = Math.max(2, Math.min(6, Math.round(+p)));
   return octaves + " octaven";
+});
+// veldafmetingen: slider 0..100 -> halve breedte/hoogte 50..300
+// (20 = standaard: veld 200 x 200; 100 = het oude veld van 600 x 600)
+bind("fw", "fwV", p => {
+  setFieldSize(50 + 2.5 * +p, fieldHalfY);
+  return Math.round(2 * fieldHalfX) + " breed";
+});
+bind("fh", "fhV", p => {
+  setFieldSize(fieldHalfX, 50 + 2.5 * +p);
+  return Math.round(2 * fieldHalfY) + " hoog";
 });
 
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
@@ -1576,6 +1603,7 @@ function serializeWorld() {
     scale: scaleIdx,
     root: rootSemi,
     oct: octaves,
+    fw: Math.round(fieldHalfX), fh: Math.round(fieldHalfY),
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
@@ -1604,6 +1632,10 @@ function applyWorld(o) {
   if (o.root !== undefined) rootSemi = Math.max(0, Math.min(11, o.root | 0));
   // hoogte-op-Canvas; opslag van vóór deze instelling = standaard 4 octaven
   octaves = o.oct !== undefined ? Math.max(2, Math.min(6, Math.round(o.oct))) : 4;
+  // veldafmetingen eerst terugzetten (camTarget-klemmen en de toonschaal
+  // hangen ervan af); opslag van vóór deze instelling = huidige afmeting
+  if (o.fw !== undefined || o.fh !== undefined)
+    setFieldSize(o.fw !== undefined ? o.fw : fieldHalfX, o.fh !== undefined ? o.fh : fieldHalfY);
   for (const s of (o.spawners || [])) {
     const sp = addSpawner(s.x, s.y);
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
@@ -1637,8 +1669,8 @@ function applyWorld(o) {
     // laadt gewoon, die hoeken worden genegeerd)
     cam.distance = Math.max(CAM_MIN_DIST, Math.min(maxCamDist(), o.cam.dist));
     // mikpunt herstellen (oude opslag zonder tx/ty = gewoon het midden)
-    camTarget[0] = Math.max(-150, Math.min(150, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
-    camTarget[1] = Math.max(-100, Math.min(150, o.cam.ty !== undefined ? o.cam.ty : CENTER[1]));
+    camTarget[0] = Math.max(-fieldHalfX / 2, Math.min(fieldHalfX / 2, o.cam.tx !== undefined ? o.cam.tx : CENTER[0]));
+    camTarget[1] = Math.max(-fieldHalfY / 3, Math.min(fieldHalfY / 2, o.cam.ty !== undefined ? o.cam.ty : CENTER[1]));
   }
   if (o.synth) {
     synth.attack = o.synth.attack; synth.decay = o.synth.decay;
@@ -1651,6 +1683,8 @@ function applyWorld(o) {
   setSlider($("scale"), scaleIdx);   // label sync (setScale merkt zelf dat idx gelijk blijft)
   setSlider($("root"), rootSemi);    // label sync
   setSlider($("oct"), octaves);      // label sync (oude opslag zonder oct = standaard 4, slider syncen)
+  setSlider($("fw"), Math.round((fieldHalfX - 50) / 2.5));
+  setSlider($("fh"), Math.round((fieldHalfY - 50) / 2.5));
   selected = null;
   syncSelPanel();
   status("Creatie teruggezet");
@@ -1760,7 +1794,7 @@ function frame() {
   camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
   view = mat4View(camAxis, eye);
   proj = mat4Perspective(50, canvas.width / Math.max(1, canvas.height), 0.1,
-    cam.distance + 2 * (FIELD_X + FIELD_Y));   // ver genoeg voor heel het veld, ook volledig uitgezoomd
+    cam.distance + 2 * (fieldHalfX + fieldHalfY));   // ver genoeg voor heel het veld, ook volledig uitgezoomd
 
   stepPhysics(dt);
 
@@ -1792,7 +1826,9 @@ function frame() {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, bdIdxBuf);
   gl.enable(gl.CULL_FACE);
   gl.disable(gl.CULL_FACE);   // backdrop mag van beide kanten
-  setMatrices(mat4Identity(), view, proj);
+  // het donkere vlak schaalt mee met het veld (zelfde verhouding als de
+  // vaste buffer: 1,5x de breedte, 1x de hoogte)
+  setMatrices(mat4Scale(fieldHalfX / 300, fieldHalfY / 300, 1), view, proj);
   gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
   gl.enable(gl.CULL_FACE);
 
