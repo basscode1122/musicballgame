@@ -1,7 +1,8 @@
 /* test-mp.js: multiplayer zonder echte PeerJS-verbinding: de
- * datakanaal-protocolfuncties, de beurt-gating en de sync-drift
- * worden tegen een fake verbinding getest (de echte handdruk loopt
- * via de publieke PeerJS-cloud en is in de harness niet beschikbaar). */
+ * datakanaal-protocolfuncties, de beurt-gating (1 bouw-actie per
+ * beurt, vrij verwijderen, undo) en de sync-drift worden tegen een
+ * fake verbinding getest (de echte handdruk loopt via de publieke
+ * PeerJS-cloud en is in de harness niet beschikbaar). */
 "use strict";
 
 function mpFakeConn() {
@@ -37,11 +38,20 @@ function mpMouseDrag(x0, y0, x1, y1, pid) {
   fire("pointerup", pev(x1, y1, { pointerId: pid }));
 }
 
+function mpRightClickWorld(wx, wy, pid) {
+  const nd = ndcOf(wx, wy);
+  const cx = Math.round((nd[0] + 1) / 2 * innerWidth);
+  const cy = Math.round((1 - nd[1]) / 2 * innerHeight);
+  fire("pointerdown", pev(cx, cy, { button: 2, buttons: 2, pointerId: pid }));
+  fire("pointerup", pev(cx, cy, { button: 2, buttons: 0, pointerId: pid }));
+}
+
 t("multiplayer-UI: bestaat en start offline", () => {
   pump(2);
   eq(mpState, "offline", "status offline");
   ok($("mpStatus").textContent.indexOf("Offline") === 0, "status-tekst offline");
-  ok($("mpTurnRow").classList.contains("hidden"), "beurt-rij verborgen");
+  ok($("mpBar").classList.contains("hidden"), "beurt-balk onderaan verborgen");
+  ok($("mpLeaveRow").classList.contains("hidden"), "Leave-rij verborgen");
   eq($("mpEndTurn").disabled, true, "End turn uit zonder verbinding");
   ok(!mpConn && !mpPeer, "geen verbinding");
 });
@@ -69,8 +79,15 @@ t("beurt-gating: zonder beurt géén muren, spawners of verwijderen", () => {
   eq(mpConn.sent.length, 0, "niets verstuurd");
 });
 
+t("beurt-balk: jouw beurt = balk zichtbaar met End turn aan", () => {
+  myTurn = true; mpBuiltId = null; mpUi();
+  ok(!$("mpBar").classList.contains("hidden"), "balk zichtbaar in sessie");
+  eq($("mpEndTurn").disabled, false, "End turn aanklikbaar op eigen beurt");
+  ok($("mpBarText").textContent.indexOf("Your turn") === 0, "balk-tekst: jouw beurt");
+  ok(!$("mpLeaveRow").classList.contains("hidden"), "Leave zichtbaar in sessie");
+});
+
 t("beurt-gating: met beurt wél bouwen, en het protocol gaat mee", () => {
-  myTurn = true; mpUi();
   const [ax, ay] = mpFreeSpot();
   const a = planePoint(ax, ay);
   mpMouseDrag(ax, ay, ax + 200, ay, 104);
@@ -79,35 +96,79 @@ t("beurt-gating: met beurt wél bouwen, en het protocol gaat mee", () => {
   ok(m, "muur is verstuurd");
   eq(m.id, walls[0].id, "muur-id gaat mee");
   near(m.x0, a[0], 0.05, "start-x in het bericht");
-  fire("dblclick", pev(ax, ay + 60, { pointerId: 105 }));
-  eq(spawners.length, 1, "spawner geplaatst op eigen beurt");
-  const s = mpConn.sent.find(x => x.t === "spawn");
-  ok(s, "spawner is verstuurd");
-  eq(s.sp.id, spawners[0].id, "spawner-id gaat mee");
-  eq(s.sp.interval, 1.5, "instellingen gaan mee");
+  ok(mpBuiltId && mpBuiltId.kind === "wall" && mpBuiltId.id === walls[0].id,
+    "de muur is het bouwsel van deze beurt");
+  eq(myTurn, true, "beurt blijft bij jou (geen auto-doorgeven)");
+  ok(!mpConn.sent.some(x => x.t === "turn"), "nog geen turn-bericht verstuurd");
+  ok($("mpBarText").textContent.indexOf("Build used") === 0, "balk-tekst: bouwsel gebruikt");
 });
 
-t("End turn: beurt gaat over en komt via het protocol terug", () => {
-  eq(myTurn, true, "we beginnen aan de beurt");
+t("max 1 bouw-actie per beurt: tweede muur of spawner gaat niet", () => {
+  const [cx, cy] = mpFreeSpot();
+  fire("dblclick", pev(cx, cy, { pointerId: 105 }));
+  eq(spawners.length, 0, "geen spawner na je bouw-actie");
+  ok(!mpConn.sent.some(x => x.t === "spawn"), "ook niks verstuurd");
+  ok($("saveStatus").textContent.indexOf("1 build per turn") >= 0, "hint over de limiet");
+  const [bx, by] = mpFreeSpot();
+  mpMouseDrag(bx, by, bx + 200, by, 105);
+  eq(walls.length, 1, "geen tweede muur");
+  eq(mpConn.sent.filter(x => x.t === "wall").length, 1, "geen tweede muur-bericht");
+});
+
+t("eigen bouwsel weghalen geeft de bouw-actie terug", () => {
+  const w = walls[0];
+  mpRightClickWorld((w.x0 + w.x1) / 2, (w.y0 + w.y1) / 2, 106);
+  eq(walls.length, 0, "muur verwijderd met rechtermuisklik");
+  eq(mpBuiltId, null, "bouw-actie is terug");
+  ok(mpConn.sent.some(x => x.t === "del" && x.id === w.id), "verwijderen verstuurd");
+  eq(myTurn, true, "beurt is nog steeds van jou");
+  ok($("mpBarText").textContent.indexOf("Your turn") === 0, "balk-tekst: weer vrij bouwen");
+  const [cx2, cy2] = mpFreeSpot();
+  fire("dblclick", pev(cx2, cy2, { pointerId: 107 }));
+  eq(spawners.length, 1, "na het weghalen mag je opnieuw bouwen");
+  ok(mpConn.sent.some(x => x.t === "spawn"), "en het gaat naar de ander");
+  ok(mpBuiltId && mpBuiltId.kind === "spawner", "de spawner is nu het bouwsel");
+});
+
+t("andere dingen weghalen is vrij maar geeft géén extra bouw-actie", () => {
+  mpOnMsg({ t: "wall", id: 50, x0: -6, y0: 2, x1: 6, y1: 2, rest: 0.85 });   // muur van de ander
+  const w = walls.find(x => x.id === 50);
+  ok(w, "muur van de ander bestaat");
+  mpRightClickWorld((w.x0 + w.x1) / 2, w.y0, 108);
+  ok(!walls.some(x => x.id === 50), "muur van de ander verwijderd (vrij)");
+  ok(mpConn.sent.some(x => x.t === "del" && x.id === 50), "verwijderen verstuurd");
+  ok(mpBuiltId && mpBuiltId.kind === "spawner", "bouw-actie niet terug: je spawner staat er nog");
+  const [cx3, cy3] = mpFreeSpot();
+  fire("dblclick", pev(cx3, cy3, { pointerId: 109 }));
+  eq(spawners.length, 1, "geen tweede bouwsel in dezelfde beurt");
+});
+
+t("End turn (onderbalk): beurt gaat over en komt via het protocol terug", () => {
   clickEl("mpEndTurn");
   eq(myTurn, false, "na End turn ben je de beurt kwijt");
   eq($("mpEndTurn").disabled, true, "knop staat uit");
+  ok($("mpBarText").textContent.indexOf("Other player") >= 0, "balk toont: ander aan de beurt");
   const m = mpConn.sent.find(x => x.t === "turn");
   ok(m && m.you === true, "turn-bericht verstuurd");
   mpOnMsg({ t: "turn", you: true });
   eq(myTurn, true, "turn-bericht van de ander geeft de beurt terug");
+  eq(mpBuiltId, null, "beurt-wissel zet de bouw-actie terug");
   eq($("mpEndTurn").disabled, false, "knop staat weer aan");
+  ok($("mpBarText").textContent.indexOf("Your turn") === 0, "balk toont: jij aan de beurt");
 });
 
 t("world-bericht laadt de wereld en zet de rol op guest (id's blijven gelijk)", () => {
+  resetWorld();
+  addSpawner(3, 3);
+  addWall(-4, -4, 4, -4, 0.85);
   const spId = spawners[0].id, wId = walls[0].id;
   const w = JSON.parse(serializeWorld());
-  ok(w.spawners.length >= 1 && w.walls.length >= 1, "wereld zit in het bericht");
+  ok(w.spawners.length === 1 && w.walls.length === 1, "wereld zit in het bericht");
   resetWorld();                              // sabotage: alles leeg
   eq(spawners.length, 0, "wereld leeg na sabotage");
   mpOnMsg({ t: "world", w });
-  eq(spawners.length, w.spawners.length, "spawners terug via het world-bericht");
-  eq(walls.length, w.walls.length, "muren terug via het world-bericht");
+  eq(spawners.length, 1, "spawner terug via het world-bericht");
+  eq(walls.length, 1, "muur terug via het world-bericht");
   eq(spawners[0].id, spId, "spawner behoudt zijn id");
   eq(walls[0].id, wId, "muur behoudt zijn id");
   eq(mpRole, "guest", "rol = guest");
@@ -121,7 +182,8 @@ t("wall-bericht maakt een muur met hetzelfde id (geen id-botsing)", () => {
   ok(w, "muur 42 bestaat");
   eq(w.rest, 0.5, "bounce gaat mee");
   const lokaal = addWall(1, 1, 2, 2, 0.85);
-  eq(lokaal.id, 43, "volgende lokale muur krijgt een vrij id");
+  ok(lokaal.id !== 42, "volgende lokale muur krijgt een vrij id");
+  ok(lokaal.id > 42, "en het tellervolg loopt door");
 });
 
 t("spawn/edit-bericht maakt en past spawners aan (id-binding)", () => {
@@ -154,7 +216,7 @@ t("sync-bericht corrigeert drift (ver = snap, dichtbij = zacht bijschuiven)", ()
   ok(balls[0].active, "bal 0 actief");
   balls[0].x = -50; balls[0].y = -40;
   mpOnMsg({ t: "sync", b: [[1, 10, 5, 1, 0, 0.6, 120, 0]], tm: [] });
-  near(balls[0].x, 10, 1e-6, "ver weg = metek gesnapt");
+  near(balls[0].x, 10, 1e-6, "ver weg = meteen gesnapt");
   near(balls[0].y, 5, 1e-6, "ook y gesnapt");
   eq(balls[0].vx, 1, "snelheid overgenomen");
   mpOnMsg({ t: "sync", b: [[1, 10.7, 5, 1, 0, 0.6, 120, 0]], tm: [] });
@@ -200,11 +262,12 @@ t("MP vergrendelt veldafmetingen, reset en laden (geen solo-acties)", () => {
   eq($("fw").disabled, false, "na Leave weer vrij");
   eq($("btnReset").disabled, false, "reset weer vrij");
   eq(mpState, "offline", "weer offline");
+  ok($("mpBar").classList.contains("hidden"), "beurt-balk weer weg");
 });
 
 t("ballen duwen staat uit in multiplayer (ook op je beurt)", () => {
   resetWorld(); resetPersistent(); pump(3);
-  mpConn = mpFakeConn(); myTurn = true; mpState = "live";
+  mpConn = mpFakeConn(); myTurn = true; mpBuiltId = null; mpState = "live";
   mpUi();
   clickEl("mPlay");
   const b0 = balls.find(b => b.active && !b.spawned);
@@ -212,6 +275,6 @@ t("ballen duwen staat uit in multiplayer (ook op je beurt)", () => {
   const cx = Math.round((nd[0] + 1) / 2 * innerWidth);
   const cy = Math.round((1 - nd[1]) / 2 * innerHeight);
   const v0 = Math.hypot(b0.vx, b0.vy);
-  mpMouseDrag(cx, cy, cx + 60, cy, 106);
+  mpMouseDrag(cx, cy, cx + 60, cy, 110);
   near(Math.hypot(b0.vx, b0.vy), v0, 1e-9, "snelheid onveranderd (duwen uit)");
 });
