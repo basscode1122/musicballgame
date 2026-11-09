@@ -1,10 +1,10 @@
 
 <!DOCTYPE html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Bollen-muziekmachine</title>
+<title>Ball Music Machine</title>
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1017; }
   #c { width: 100vw; height: 100vh; display: block; touch-action: none; }
@@ -82,50 +82,50 @@
 <div id="panel">
   <button id="panelToggle"></button>
   <div id="panelBody">
-  <h2>Bollen-muziekmachine</h2>
+  <h2>Ball Music Machine</h2>
   <div class="modes">
     <button id="mPlay" class="active">Play</button>
     <button id="mSpawner">Spawner</button>
-    <button id="mWall">Muur</button>
+    <button id="mWall">Wall</button>
   </div>
   <div id="saveRow">
-    <button id="btnSave">Opslaan</button>
-    <button id="btnLoad">Laden</button>
+    <button id="btnSave">Save</button>
+    <button id="btnLoad">Load</button>
     <button id="btnReset">Reset</button>
-    <button id="btnCamReset">Camera reset</button>
+    <button id="btnCamReset">Reset camera</button>
     <span id="saveStatus"></span>
   </div>
-  <div class="sub">Standaard voor nieuwe spawners</div>
+  <div class="sub">Default for new spawners</div>
   <div class="row"><label for="atk">Attack</label><input id="atk" type="range" min="0" max="100" value="1"><output id="atkV"></output></div>
   <div class="row"><label for="dcy">Decay</label><input id="dcy" type="range" min="0" max="100" value="51"><output id="dcyV"></output></div>
   <div class="row"><label for="rel">Release</label><input id="rel" type="range" min="0" max="100" value="61"><output id="relV"></output></div>
-  <div class="sub">Globaal</div>
+  <div class="sub">Global</div>
   <div class="row"><label for="vel">Velocity</label><input id="vel" type="range" min="0" max="100" value="33"><output id="velV"></output></div>
-  <div class="row"><label for="scale">Ladder</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
-  <div class="row"><label for="root">Grondtoon</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
-  <div class="row"><label for="oct">Octaven</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
-  <div class="row"><label for="fw">Veldbreedte</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
-  <div class="row"><label for="fh">Veldhoogte</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
+  <div class="row"><label for="scale">Scale</label><input id="scale" type="range" min="0" max="4" step="1" value="0"><output id="scaleV"></output></div>
+  <div class="row"><label for="root">Root</label><input id="root" type="range" min="0" max="11" step="1" value="0"><output id="rootV"></output></div>
+  <div class="row"><label for="oct">Octaves</label><input id="oct" type="range" min="2" max="6" step="1" value="4"><output id="octV"></output></div>
+  <div class="row"><label for="fw">Field width</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
+  <div class="row"><label for="fh">Field height</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
   <div class="row"><label for="tr">Trail</label><input id="tr" type="range" min="0" max="100" value="50"><output id="trV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; 2 vingers samen schuiven = camera over het veld (zoals Google Maps) &middot; volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%) &middot; PC/muis: dubbelklik = spawner plaatsen (Spawner-modus), scrollen = zoomen, rechtermuisknop ingedrukt houden + bewegen = camera/ankerpunt schuiven, linkermuisknop slepen = duwen (Play) of muur tekenen (Muur)</div>
+  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%)</div>
   </div>
 </div>
 
 <div id="selPanel">
   <div id="selTitle"></div>
   <div class="row hidden" id="rowInt"><label for="sInt">Interval</label><input id="sInt" type="range" min="0" max="100" value="45"><output id="sIntV"></output></div>
-  <div class="row hidden" id="rowSize"><label for="sSize">Grootte</label><input id="sSize" type="range" min="0" max="100" value="44"><output id="sSizeV"></output></div>
-  <div class="row hidden" id="rowAngle"><label for="sAngle">Richting</label><input id="sAngle" type="range" min="0" max="100" value="75"><output id="sAngleV"></output></div>
-  <div class="row hidden" id="rowSpeed"><label for="sSpeed">Snelheid</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
-  <div class="row hidden" id="rowWeight"><label for="sWeight">Gewicht</label><input id="sWeight" type="range" min="0" max="100" value="50"><output id="sWeightV"></output></div>
+  <div class="row hidden" id="rowSize"><label for="sSize">Size</label><input id="sSize" type="range" min="0" max="100" value="44"><output id="sSizeV"></output></div>
+  <div class="row hidden" id="rowAngle"><label for="sAngle">Direction</label><input id="sAngle" type="range" min="0" max="100" value="75"><output id="sAngleV"></output></div>
+  <div class="row hidden" id="rowSpeed"><label for="sSpeed">Speed</label><input id="sSpeed" type="range" min="0" max="100" value="25"><output id="sSpeedV"></output></div>
+  <div class="row hidden" id="rowWeight"><label for="sWeight">Weight</label><input id="sWeight" type="range" min="0" max="100" value="50"><output id="sWeightV"></output></div>
   <div class="row hidden" id="rowVolume"><label for="sVolume">Volume</label><input id="sVolume" type="range" min="0" max="100" value="100"><output id="sVolumeV"></output></div>
   <div class="row hidden" id="rowAtk"><label for="sAtk">Attack</label><input id="sAtk" type="range" min="0" max="100" value="1"><output id="sAtkV"></output></div>
   <div class="row hidden" id="rowDcy"><label for="sDcy">Decay</label><input id="sDcy" type="range" min="0" max="100" value="51"><output id="sDcyV"></output></div>
   <div class="row hidden" id="rowRel"><label for="sRel">Release</label><input id="sRel" type="range" min="0" max="100" value="61"><output id="sRelV"></output></div>
   <div class="row hidden" id="rowVel"><label for="sVel">Velocity</label><input id="sVel" type="range" min="0" max="100" value="33"><output id="sVelV"></output></div>
-  <div class="row hidden" id="rowMode"><label>Modus</label><div class="modes"><button id="bSynth" class="active">Synth</button><button id="bSampler">Sampler</button></div><output>&nbsp;</output></div>
+  <div class="row hidden" id="rowMode"><label>Mode</label><div class="modes"><button id="bSynth" class="active">Synth</button><button id="bSampler">Sampler</button></div><output>&nbsp;</output></div>
   <div id="synthSec" class="hidden">
-    <div class="row hidden" id="rowWave"><label for="sWave">Golf</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
+    <div class="row hidden" id="rowWave"><label for="sWave">Wave</label><input id="sWave" type="range" min="0" max="100" value="0"><output id="sWaveV"></output></div>
     <button id="fmToggle" class="fmBtn">FM: uit</button>
     <div class="row hidden" id="rowFmR0"><button id="fmE0" class="fmLbl">M1</button><input id="fmR0" type="range" min="0" max="100" value="50"><output id="fmR0V"></output></div>
     <div class="row hidden" id="rowFmD0"><label>&nbsp;</label><input id="fmD0" type="range" min="0" max="100" value="25"><output id="fmD0V"></output></div>
@@ -137,13 +137,13 @@
     <div class="row hidden" id="rowFmD3"><label>&nbsp;</label><input id="fmD3" type="range" min="0" max="100" value="25"><output id="fmD3V"></output></div>
   </div>
   <div id="samplerSec" class="hidden">
-    <button id="recBtn" class="hidden">Houd in om op te nemen</button>
+    <button id="recBtn" class="hidden">Hold to record</button>
     <div id="recStatus" class="hidden"></div>
     <canvas id="waveView" width="560" height="128"></canvas>
     <div class="row hidden" id="rowStart"><label for="sStart">Start</label><input id="sStart" type="range" min="0" max="100" value="0"><output id="sStartV"></output></div>
   </div>
   <div class="row hidden" id="rowBounce"><label for="sBounce">Bounce</label><input id="sBounce" type="range" min="0" max="100" value="50"><output id="sBounceV"></output></div>
-  <button id="delBtn" class="hidden">Verwijder</button>
+  <button id="delBtn" class="hidden">Delete</button>
 </div>
 
 <script>
@@ -487,11 +487,11 @@ function noteNameFromFreq(f) {
  * piano). De hoogte van het HELE veld (instelbare Veldhoogte) = het
  * ingestelde aantal octaven; zoomen verandert de toon niet. */
 const SCALES = [
-  { name: "Pentatonisch mineur", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
-  { name: "Pentatonisch majeur", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
-  { name: "Majeur",              semi: [0, 2, 4, 5, 7, 9, 11] },
-  { name: "Mineur (Aeolisch)",   semi: [0, 2, 3, 5, 7, 8, 10] },
-  { name: "Melodisch mineur",    semi: [0, 2, 3, 5, 7, 9, 11] }
+  { name: "Pentatonic minor", semi: [0, 3, 5, 7, 10] },      // grondtoon + tertiaal
+  { name: "Pentatonic major", semi: [0, 2, 4, 7, 9] },      // grondtoon + majeur-penta
+  { name: "Major",                semi: [0, 2, 4, 5, 7, 9, 11] },
+  { name: "Minor (Aeolian)",      semi: [0, 2, 3, 5, 7, 8, 10] },
+  { name: "Melodic minor",        semi: [0, 2, 3, 5, 7, 9, 11] }
 ];
 let scaleIdx = 0;
 let rootSemi = 0;         // grondtoon: 0 = A, 1 = A#, ..., 11 = G#
@@ -557,7 +557,7 @@ function setRoot(semi) {
 /* ---- golfvorm-presets per spawner (index in WAVE_NAMES) ----
  * Een spawner is een SYNTH (oscillator met golfvorm, eventueel met FM)
  * of een SAMPLER (eigen microfoon-opname, zie sp.mode hieronder). */
-const WAVE_NAMES = ["Sinus", "Blok", "Zaag", "Driehoek"];
+const WAVE_NAMES = ["Sine", "Square", "Saw", "Triangle"];
 const WAVE_TYPES = ["sine", "square", "sawtooth", "triangle"];
 const WAVE_HARM  = [0.3, 0.15, 0.15, 0.3];   // gain van de 2e harmonische
 const MODE_SYNTH = 0, MODE_SAMPLER = 1;       // spawner-modus
@@ -627,6 +627,10 @@ function wallColor(w) {
 const spawners = [];
 let spawnerSeq = 0;
 function addSpawner(x, y) {
+  // altijd (net) binnen het veld plaatsen: een spawner op of buiten de
+  // rand spawnt ballen die direct weer despawnen en lijken "dood"
+  x = Math.max(-fieldHalfX + 1.2, Math.min(fieldHalfX - 1.2, x));
+  y = Math.max(-fieldHalfY + 1.2, Math.min(fieldHalfY - 1.2, y));
   const idx = ++spawnerSeq;
   const sp = {
     id: idx, x, y, interval: 1.5, size: 0.7, timer: 0, angle: 270, speed: 25,
@@ -884,6 +888,13 @@ function spawnBall(sp) {
   slot.vx = sp.speed * Math.cos(a);
   slot.vy = sp.speed * Math.sin(a);
   slot.r = sp.size;
+  // spawnpunt altijd VOLLEDIG binnen het veld klemmen (bijv. na het
+  // verkleinen van het veld of een geladen creatie met een groter
+  // veld): een bal die volledig buiten de randen spawnt wordt in
+  // dezelfde physics-stap alweer gedespawnd, je ziet dan niks
+  // verschijnen
+  slot.x = Math.max(-fieldHalfX + slot.r, Math.min(fieldHalfX - slot.r, slot.x));
+  slot.y = Math.max(-fieldHalfY + slot.r, Math.min(fieldHalfY - slot.r, slot.y));
   slot.hue = sp.hue;
   slot.note = posPitch(slot.y);                // toon = plek op het canvas (absolute schaal)
   slot.wave = sp.wave;
@@ -1135,8 +1146,8 @@ let gesture = null;
 let lastTapTime = 0;
 let dragWall = null;                    // muur-voorbeeld tijdens het tekenen
 
-function selectAt(p) {
-  if (!p) { selected = null; syncSelPanel(); return; }
+function pickAt(p) {
+  if (!p) return null;
   // klik-tolerantie in wereld-eenheden, geschaald met de camera-afstand:
   // ook als je ver uitgezoomd bent blijft tikken ~28 px nauwkeurig
   const grab = Math.max(0.55, cam.distance * 0.04);
@@ -1159,12 +1170,46 @@ function selectAt(p) {
   }
   if (bestW && bestWD > grab) bestW = null;
   // spawner heeft voorkeur bij gelijke afstand
-  if (bestSp && (!bestW || bestSpD < bestWD + 0.3)) {
-    selected = { kind: "spawner", id: bestSp.id };
-  } else if (bestW) {
-    selected = { kind: "wall", id: bestW.id };
-  } else selected = null;
+  if (bestSp && (!bestW || bestSpD < bestWD + 0.3)) return { kind: "spawner", id: bestSp.id };
+  if (bestW) return { kind: "wall", id: bestW.id };
+  return null;
+}
+
+function selectAt(p) {
+  selected = pickAt(p);
   syncSelPanel();
+}
+
+/* verwijdert de spawner of muur onder de cursor (rechtermuisklik op
+ * de PC); gebruikt dezelfde zoeklogica als selecteren */
+function deleteAt(p) {
+  const hit = pickAt(p);
+  if (!hit) return;
+  const arr = hit.kind === "spawner" ? spawners : walls;
+  const i = arr.findIndex(o => o.id === hit.id);
+  if (i >= 0) {
+    const o = arr[i];
+    // GL-buffers netjes vrijgeven (zelfde opruiming als deleteSelected)
+    if (o.colorBuf) gl.deleteBuffer(o.colorBuf);
+    if (o.arrowBuf) gl.deleteBuffer(o.arrowBuf);
+    if (o.sample) o.sample = null;
+    arr.splice(i, 1);
+  }
+  if (selected && selected.kind === hit.kind && selected.id === hit.id) {
+    selected = null;
+    syncSelPanel();
+  }
+}
+
+/* ligt er een actieve bal onder de cursor (marge in wereld-eenheden)?
+ * hieraan weet de PC-muis of een sleep een bal moet duwen of een muur
+ * moet tekenen */
+function ballNear(p, m) {
+  if (!p) return false;
+  for (const b of balls) {
+    if (b.active && Math.hypot(b.x - p[0], b.y - p[1]) < b.r + m) return true;
+  }
+  return false;
 }
 
 function pushBalls(p, delta) {
@@ -1188,7 +1233,10 @@ canvas.addEventListener("pointerdown", (e) => {
   if (e.button === 2) {
     canvas.setPointerCapture(e.pointerId);
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    gesture = { kind: "panMouse", anchor: planePoint(e.clientX, e.clientY) };
+    // moved = pas na echte beweging: loslaten ZONDER bewegen is een
+    // verwijder-klik (muur/spawner onder de cursor)
+    gesture = { kind: "panMouse", anchor: planePoint(e.clientX, e.clientY),
+      sx: e.clientX, sy: e.clientY, moved: false };
     return;
   }
   if (e.button !== 0) return;   // midden/extra muisknoppen: niks doen
@@ -1212,13 +1260,30 @@ canvas.addEventListener("pointerdown", (e) => {
       anchor: planePoint((p1.x + p2.x) / 2, (p1.y + p2.y) / 2)
     };
   } else if (pointers.size === 1) {
-    if (mode === "wall") {
-      const p = planePoint(e.clientX, e.clientY);
+    const p = planePoint(e.clientX, e.clientY);
+    if (e.pointerType === "mouse") {
+      // PC/muis: EEN schema in elke modus, je hoeft op de PC nooit in
+      // het menu te wisselen:
+      // - sleep op/nabij een bal = duwen (het Play-gebaar)
+      // - sleep op leeg veld = muur tekenen (loslaten met lengte > 0.5)
+      // - tik zonder slepen = selecteren
+      // - dubbelklik = spawner plaatsen (dblclick hieronder)
+      // - rechtermuisknop = camera schuiven; zonder bewegen = verwijderen
+      if (p && ballNear(p, 1.5)) {
+        gesture = {
+          kind: "swipe", last: p,
+          sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
+        };
+      } else {
+        if (p) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+        gesture = { kind: "wall" };
+      }
+    } else if (mode === "wall") {
       if (p) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
       gesture = { kind: "wall" };
     } else if (mode === "play") {
       gesture = {
-        kind: "swipe", last: planePoint(e.clientX, e.clientY),
+        kind: "swipe", last: p,
         sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
       };
     } else {   // spawner-modus: lang indrukken = plaatsen (slepen breekt af)
@@ -1264,7 +1329,9 @@ canvas.addEventListener("pointermove", (e) => {
     gesture.dist = d;
   } else if (gesture.kind === "panMouse") {
     // rechtermuisknop: het vastgepakte wereldpunt blijft onder de cursor
-    // (touch: dit is 2 vingers samen schuiven)
+    // (touch: dit is 2 vingers samen schuiven); bij echte beweging is
+    // het een schuif-gebaar, geen verwijder-klik
+    if (Math.hypot(e.clientX - gesture.sx, e.clientY - gesture.sy) > 4) gesture.moved = true;
     const now = planePoint(e.clientX, e.clientY);
     if (now && gesture.anchor) {
       panCam(gesture.anchor[0] - now[0], gesture.anchor[1] - now[1]);
@@ -1298,7 +1365,11 @@ function endPointer(e) {
     return;
   }
   gesture = null;
-  if (g && g.kind === "wall" && dragWall) {
+  if (g && g.kind === "panMouse") {
+    // rechtermuisknop losgelaten ZONDER schuiven = de muur of spawner
+    // onder de cursor verwijderen
+    if (!g.moved && e.type === "pointerup") deleteAt(planePoint(e.clientX, e.clientY));
+  } else if (g && g.kind === "wall" && dragWall) {
     const len = Math.hypot(dragWall.x1 - dragWall.x0, dragWall.y1 - dragWall.y0);
     if (len > 0.5) {
       const w = addWall(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, 0.85);
@@ -1314,11 +1385,15 @@ function endPointer(e) {
     // telefoon is een tik vaak langer dan 300 ms en dan selecteerde hij niks)
     if (!g.moved) {
       const p = planePoint(e.clientX, e.clientY);
-      const now = performance.now();
-      if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
-      else lastTapTime = now;
-      // selecteer ALTIJD: bij een dubbeltik vallen de ballen opnieuw, maar
-      // de tik moet daarnaast ook gewoon het ding onder je vinger pakken
+      // dubbeltik = ballen opnieuw laten vallen; op de PC is de
+      // dubbelklik gereserveerd voor het PLAATSEN van een spawner
+      // (in elke modus), dus dit geldt alleen voor touch
+      if (e.pointerType !== "mouse") {
+        const now = performance.now();
+        if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
+        else lastTapTime = now;
+      }
+      // tik = altijd selecteren, ook na een (touch-)dubbeltik
       selectAt(p);
     }
   } else if (g && g.kind === "spawnerGesture") {
@@ -1340,10 +1415,10 @@ function endPointer(e) {
 canvas.addEventListener("pointerup", endPointer);
 canvas.addEventListener("pointercancel", endPointer);
 
-// PC/muis: in de Spawner-modus plaatst een DUBBELKLIK een spawner
-// (op touch is en blijft dat lang indrukken)
+// PC/muis: een DUBBELKLIK plaatst een spawner, in ELKE modus (op
+// touch is en blijft dat lang indrukken); zo hoef je op de PC nooit
+// in het menu te wisselen
 canvas.addEventListener("dblclick", (e) => {
-  if (mode !== "spawner") return;
   const p = planePoint(e.clientX, e.clientY);
   if (!p) return;
   const sp = addSpawner(p[0], p[1]);
@@ -1379,7 +1454,7 @@ bind("rel", "relV", p => fmtTime(synth.release = 0.01 * Math.pow(200, p / 100)))
 // Standaardwaarde 33 -> -8 dB (afronding op hele dB's houdt dat exact).
 bind("vel", "velV", p => {
   synth.velDepthDb = -Math.round(p * 24 / 100);
-  return synth.velDepthDb === 0 ? "0 dB (geen)" : synth.velDepthDb + " dB (std spawner)";
+  return synth.velDepthDb === 0 ? "0 dB (none)" : synth.velDepthDb + " dB (default)";
 });
 // globale toonladder (5 standaard ladders) + grondtoon
 bind("scale", "scaleV", p => { setScale(+p); return SCALES[scaleIdx].name; });
@@ -1387,17 +1462,17 @@ bind("root", "rootV", p => { setRoot(+p); return rootName(); });
 // hoogte-op-Canvas: aantal octaven over de hoogte van het HELE veld (2 t/m 6)
 bind("oct", "octV", p => {
   octaves = Math.max(2, Math.min(6, Math.round(+p)));
-  return octaves + " octaven";
+  return octaves + " octaves";
 });
 // veldafmetingen: slider 0..100 -> halve breedte/hoogte 50..300
 // (20 = standaard: veld 200 x 200; 100 = het oude veld van 600 x 600)
 bind("fw", "fwV", p => {
   setFieldSize(50 + 2.5 * +p, fieldHalfY);
-  return Math.round(2 * fieldHalfX) + " breed";
+  return Math.round(2 * fieldHalfX) + " wide";
 });
 bind("fh", "fhV", p => {
   setFieldSize(fieldHalfX, 50 + 2.5 * +p);
-  return Math.round(2 * fieldHalfY) + " hoog";
+  return Math.round(2 * fieldHalfY) + " tall";
 });
 // trail: globale sterkte/dikte van de sleep achter ballen (0 = onzichtbaar)
 bind("tr", "trV", p => {
@@ -1448,7 +1523,7 @@ function drawWaveView() {
     g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
     g.fillStyle = "#7488a8"; g.font = "11px system-ui, sans-serif";
     g.textAlign = "center";
-    g.fillText("Nog geen opname: houd de knop ingedrukt", w / 2, h / 2 - 8);
+    g.fillText("No recording yet: hold the button", w / 2, h / 2 - 8);
     return;
   }
   const d = smp.data, n = d.length;
@@ -1515,8 +1590,8 @@ function syncSelPanel() {
       $("recStatus").classList.remove("hidden");
       $("rowStart").classList.remove("hidden");
       $("recStatus").textContent = obj.sample && obj.sample.data && obj.sample.data.length
-        ? "Sample: " + fmtTime(obj.sample.data.length / (obj.sample.sr || 48000)) + " · genormaliseerd"
-        : "Nog geen opname";
+        ? "Sample: " + fmtTime(obj.sample.data.length / (obj.sample.sr || 48000)) + " · normalized"
+        : "No recording yet";
       setSlider($("sStart"), Math.round(((obj.sample && obj.sample.start) || 0) * 100));
       $("sStartV").textContent = startText(obj);
       drawWaveView();
@@ -1524,7 +1599,7 @@ function syncSelPanel() {
       $("rowWave").classList.remove("hidden");
       setSlider($("sWave"), Math.round(Math.max(0, Math.min(3, obj.wave)) * 100 / 3));
       $("sWaveV").textContent = WAVE_NAMES[obj.wave] || WAVE_NAMES[0];
-      $("fmToggle").textContent = obj.fm.on ? "FM: aan" : "FM: uit";
+      $("fmToggle").textContent = obj.fm.on ? "FM: on" : "FM: off";
       $("fmToggle").classList.toggle("on", obj.fm.on);
       for (let k = 0; k < 4; k++) {
         const m = obj.fm.mods[k];
@@ -1541,7 +1616,7 @@ function syncSelPanel() {
       }
     }
   } else {
-    $("selTitle").textContent = "Muur " + selected.id;
+    $("selTitle").textContent = "Wall " + selected.id;
     $("rowInt").classList.add("hidden");
     $("rowSize").classList.add("hidden");
     $("rowAngle").classList.add("hidden");
@@ -1715,7 +1790,7 @@ function recStatus(msg) { $("recStatus").textContent = msg; }
 async function startRecording() {
   const obj = selected && selected.kind === "spawner" ? findSelected("spawner", selected.id) : null;
   if (!obj || recState) return;
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { recStatus("Microfoon niet beschikbaar"); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { recStatus("Microphone not available"); return; }
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (err) {
@@ -1724,31 +1799,30 @@ async function startRecording() {
     const naam = err && err.name ? err.name : "";
     if (naam === "NotFoundError" || naam === "OverconstrainedError" ||
         naam === "DevicesNotFoundError") {
-      recStatus("Geen microfoon gevonden op dit apparaat");
+      recStatus("No microphone found on this device");
     } else if (naam === "NotReadableError" || naam === "TrackStartError") {
-      recStatus("Microfoon is bezet: sluit andere apps die hem gebruiken");
+      recStatus("Microphone is busy: close other apps that are using it");
     } else if (location.protocol === "content:") {
       // via de bestandsmanager geopend (Android): content:// is géén beveiligde
       // origin, dus de browser vraagt het nooit en er is ook geen slot-icoon
-      recStatus("Microfoon gaat niet op een via de bestandsmanager geopende " +
-        "pagina (content://). Open de preview via https of localhost, " +
-        "of test de Sample-golf in de Android-app zelf.");
+      recStatus("The microphone does not work on a page opened via the file " +
+        "manager (content://). Open the preview via https or localhost, " +
+        "or try the Sample wave in the Android app itself.");
     } else if (window.self !== window.top || !window.isSecureContext) {
       // iframe zonder microfoon-toegang, of geen beveiligde context:
       // dan vraagt de browser het niet eens meer, hoe vaak je ook drukt
-      recStatus("Deze pagina mag de microfoon niet gebruiken (kader/" +
-        "onveilige context). Open het bestand apart in je browser " +
-        "(apart tabblad) en sta de microfoon toe.");
+      recStatus("This page is not allowed to use the microphone (frame/" +
+        "unsecure context). Open the file in your browser directly " +
+        "(separate tab) and allow the microphone.");
     } else {
       // echte weigering op een https-pagina: site-instellingen of adresbalk
-      recStatus("Microfoon geweigerd: zet hem aan via het slot-icoon naast " +
-        "de adresbalk (of site-instellingen, Microfoon: Toestaan) en " +
-        "druk nog een keer.");
+      recStatus("Microphone denied: enable it via the lock icon next to the " +
+        "address bar (or site settings, Microphone: Allow) and press again.");
     }
     return;
   }
   ensureAudio();
-  if (!audioCtx) { recStatus("Audio niet beschikbaar"); stream.getTracks().forEach(t => t.stop()); return; }
+  if (!audioCtx) { recStatus("Audio not available"); stream.getTracks().forEach(t => t.stop()); return; }
   if (recPendingStop) { recPendingStop = false; stream.getTracks().forEach(t => t.stop()); return; }
   const src = audioCtx.createMediaStreamSource(stream);
   const proc = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -1760,7 +1834,7 @@ async function startRecording() {
   src.connect(proc); proc.connect(silent); silent.connect(audioCtx.destination);
   recState = { stream, src, proc, silent, chunks, baseFreq: obj.note, sr: audioCtx.sampleRate };
   $("recBtn").classList.add("recording");
-  $("recBtn").textContent = "Opnemen… (laat los om te stoppen)";
+  $("recBtn").textContent = "Recording… (release to stop)";
 }
 function stopRecording() {
   const st = recState;
@@ -1768,7 +1842,7 @@ function stopRecording() {
   recState = null;
   try { st.proc.disconnect(); st.src.disconnect(); st.silent.disconnect(); st.stream.getTracks().forEach(t => t.stop()); } catch (err) {}
   $("recBtn").classList.remove("recording");
-  $("recBtn").textContent = "Houd in om op te nemen";
+  $("recBtn").textContent = "Hold to record";
   let len = 0; for (const c of st.chunks) len += c.length;
   if (len < 64) { recStatus("Te kort, houd langer ingedrukt"); return; }
   const data = new Float32Array(len);
@@ -1782,7 +1856,7 @@ function stopRecording() {
   if (peak > 1e-6) {
     const g = 0.95 / peak;
     for (let i = 0; i < data.length; i++) data[i] *= g;
-    normTxt = " · genormaliseerd (×" + g.toFixed(1) + ")";
+    normTxt = " \u00b7 normalized (\u00d7" + g.toFixed(1) + ")";
   }
   obj.sample = { data, baseFreq: st.baseFreq, sr: st.sr, buffer: null, start: 0 };
   recStatus("Sample: " + fmtTime(len / st.sr) + normTxt);
@@ -1939,20 +2013,20 @@ function applyWorld(o) {
   if (o.tr !== undefined) setSlider($("tr"), Math.max(0, Math.min(100, o.tr | 0)));
   selected = null;
   syncSelPanel();
-  status("Creatie teruggezet");
+  status("Creation restored");
 }
 function saveWorld() {
   try {
     localStorage.setItem(SAVE_KEY, serializeWorld());
-    status("Opgeslagen");
-  } catch (err) { status("Opslaan mislukt"); }
+    status("Saved");
+  } catch (err) { status("Save failed"); }
 }
 function loadWorld() {
   let s = null;
   try { s = localStorage.getItem(SAVE_KEY); } catch (err) {}
-  if (!s) { status("Nog niets opgeslagen"); return; }
+  if (!s) { status("Nothing saved yet"); return; }
   try { applyWorld(JSON.parse(s)); }
-  catch (err) { status("Opslag onleesbaar"); }
+  catch (err) { status("Saved data unreadable"); }
 }
 function resetWorld() {
   disposeWorldGl();
@@ -1961,22 +2035,22 @@ function resetWorld() {
   for (const b of balls) { b.active = false; b.spawned = false; }
   selected = null;
   syncSelPanel();
-  status("Canvas geleegd");
+  status("Canvas cleared");
 }
 $("btnSave").addEventListener("click", saveWorld);
 $("btnLoad").addEventListener("click", loadWorld);
 $("btnReset").addEventListener("click", resetWorld);
 $("btnCamReset").addEventListener("click", () => {
   resetCam();
-  status("Camera in het midden");
+  status("Camera centered");
 });
 
 // inklapbaar settings-panel (start ingeklapt: leeg canvas)
 $("panelBody").classList.add("hidden");
-$("panelToggle").textContent = "Instellingen ▸";
+$("panelToggle").textContent = "Settings ▸";
 $("panelToggle").addEventListener("click", () => {
   const collapsed = $("panelBody").classList.toggle("hidden");
-  $("panelToggle").textContent = collapsed ? "Instellingen ▸" : "Instellingen ▾";
+  $("panelToggle").textContent = collapsed ? "Settings ▸" : "Settings ▾";
 });
 syncSelPanel();
 
