@@ -205,12 +205,19 @@
      Instellingen (0 = onzichtbaar, default 50%)
    - ballen zijn geen 3D-bollen meer maar platte schijven met
      fellere kleuren (minder verlichtingskosten, zelfde look)
-   - PC/muis-besturing: linkermuisknop = tikken/slepen/duwen (Play),
-     klik + sleep = muur tekenen (Muur), DUBBELKLIK = spawner
-     plaatsen (Spawner), scrollen = zoomen rond de cursor,
-     rechtermuisknop ingedrukt houden + bewegen = camera/ankerpunt
-     over het veld schuiven (contextmenu staat uit op het canvas);
-     op touch blijft alles zoals het was (lang indrukken = plaatsen)
+   - PC/muis-besturing (EEN schema in ELKE modus, nooit menu-wisselen):
+     DUBBELKLIK = spawner plaatsen, klik + sleep op leeg veld = muur
+     tekenen, sleep op/nabij een bal = duwen, tik = selecteren,
+     RECHTERMUISKLIK zonder bewegen = muur/spawner onder de cursor
+     verwijderen, rechts ingedrukt + bewegen = camera/ankerpunt
+     schuiven, scrollen = zoomen rond de cursor (contextmenu staat
+     uit op het canvas); op touch blijft alles zoals het was
+     (lang indrukken = plaatsen, dubbeltik = ballen opnieuw)
+   - spawners worden altijd (net) binnen het veld geplaatst en de
+     bal spawnt volledig binnen de randen: geen "dode" spawners aan
+     de uitersten van het veld meer
+   - de volledige UI is Engels (modi, knoppen, slider-labels,
+     golf-/laddernamen, status- en foutmeldingen)
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
      zichtbaar zodra je iets aantikt, weg als je niks selecteert
