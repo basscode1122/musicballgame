@@ -1,6 +1,12 @@
-/* test-regressie.js: kern van de vorige features (snelheid/gewicht/velocity/trail/v4)
- * + deze ronde: rand-bugfix + Engelse UI-woorden */
+/* test-regressie.js: kern van de vorige features (snelheid/gewicht/velocity/trail)
+ * + deze ronde: stem-pool 16-64 + stem-diefstal (oudste/verste) + opslag v5 */
 "use strict";
+
+function hSetSel(id, v) {
+  const e = document.getElementById(id);
+  e.value = String(v);
+  e.fire("change", { target: e, preventDefault() {} });
+}
 
 t("spawner-defaults: snelheid 25, gewicht 50, velDb -8 (vanuit synth)", () => {
   eq(synth.velDepthDb, -8, "globale standaard -8 dB");
@@ -91,25 +97,35 @@ t("trail: sterkte-slider + historie per bal", () => {
   hSetSlider("tr", 50);
 });
 
-t("opslag v4: weight, vdb en tr gaan mee en komen terug", () => {
+t("opslag v5: voices/steal gaan mee en komen terug", () => {
   const sp = addSpawner(7, 7);
   sp.weight = 30;
   sp.velDb = -20;
   hSetSlider("tr", 60);
+  hSetSel("mv", 64);
+  hSetSel("sm", 1);
   saveWorld();
   const o = JSON.parse(localStorage.getItem(SAVE_KEY));
-  eq(o.v, 4, "opslag-formule v4");
+  eq(o.v, 5, "opslag-formule v5");
   const s = o.spawners.find(x => x.weight === 30 && x.vdb === -20);
   ok(s, "weight + vdb in de opslag");
   eq(s.weight, 30, "weight in de opslag");
   eq(s.vdb, -20, "vdb in de opslag");
   eq(o.tr, 60, "trail-sterkte in de opslag");
+  eq(o.mv, 64, "voices in de opslag");
+  eq(o.sm, 1, "steal-modus in de opslag");
   sp.weight = 100; sp.velDb = 0;          // sabotage
   trailStrength = 0;
+  MAX_VOICES = 16;
+  stealMode = STEAL_OLDEST;
   loadWorld();
   const sp2 = spawners.find(x => x.weight === 30 && x.velDb === -20);
   ok(sp2, "spawner terug na Laden");
   near(trailStrength, 0.6, 1e-6, "trail-sterkte terug na Laden");
+  eq(MAX_VOICES, 64, "voices terug na Laden");
+  eq(stealMode, STEAL_FURTHEST, "steal-modus terug na Laden");
+  hSetSel("mv", 16);                       // netjes terug naar de standaarden
+  hSetSel("sm", 0);
 });
 
 t("Engelse UI: golf- en toonladder-namen", () => {
@@ -126,4 +142,51 @@ t("stem-pool 16 + master-bus tegen kraak (vorige ronde)", () => {
   ensureAudio();
   ok(masterBus, "master-bus bestaat");
   ok(audioCtx, "audio-context aan");
+});
+
+t("stem-pool: max stemmen instelbaar (16 t/m 64, default 16)", () => {
+  eq(MAX_VOICES, 16, "standaard 16");
+  hSetSel("mv", 64);
+  eq(MAX_VOICES, 64, "64 via de dropdown");
+  hSetSel("mv", 32);
+  eq(MAX_VOICES, 32, "32 via de dropdown");
+  hSetSel("mv", 16);
+  eq(MAX_VOICES, 16, "terug naar 16");
+});
+
+t("stem-diefstal: standaard wordt de oudste stem gestolen", () => {
+  ensureAudio();
+  eq(stealMode, STEAL_OLDEST, "standaard Oldest");
+  const saved = activeVoices.slice();
+  activeVoices.length = 0;
+  const mk = (t0, x, y) => ({ t0, x, y,
+    gain: { gain: { cancelScheduledValues() {}, setTargetAtTime() {} } },
+    srcs: [{ stop() {} }] });
+  const oud = mk(1, camTarget[0] + 1, camTarget[1]);
+  const nieuw = mk(2, camTarget[0] + 40, camTarget[1]);
+  activeVoices.push(oud, nieuw);
+  stealVoice(3);
+  ok(!activeVoices.includes(oud), "oudste stem is gestolen");
+  ok(activeVoices.includes(nieuw), "nieuwere stem blijft staan");
+  activeVoices.length = 0;
+  activeVoices.push(...saved);
+});
+
+t("stem-diefstal: Furthest steelt de stem het verst van het cameramikpunt", () => {
+  hSetSel("sm", 1);
+  eq(stealMode, STEAL_FURTHEST, "dropdown zet de modus");
+  const saved = activeVoices.slice();
+  activeVoices.length = 0;
+  const mk = (t0, x, y) => ({ t0, x, y,
+    gain: { gain: { cancelScheduledValues() {}, setTargetAtTime() {} } },
+    srcs: [{ stop() {} }] });
+  const dichtbij = mk(1, camTarget[0] + 1, camTarget[1]);   // oud, maar dichtbij
+  const ver = mk(2, camTarget[0] + 50, camTarget[1]);       // nieuw, maar ver weg
+  activeVoices.push(dichtbij, ver);
+  stealVoice(3);
+  ok(!activeVoices.includes(ver), "verste stem gestolen ondanks nieuwer te zijn");
+  ok(activeVoices.includes(dichtbij), "dichtstbijzijnde (oudste) stem blijft staan");
+  activeVoices.length = 0;
+  activeVoices.push(...saved);
+  hSetSel("sm", 0);
 });
