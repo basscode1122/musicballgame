@@ -32,6 +32,11 @@
   .sub { font-size: 11px; color: #7488a8; margin: 10px 0 2px; }
   input[type=range] { width: 100%; accent-color: #4f8cff; margin: 0; }
   .row select { width: 100%; background: #151b28; color: #cfe0ff; border: 1px solid #2a3550; border-radius: 7px; padding: 4px 6px; font: 12px system-ui, sans-serif; box-sizing: border-box; }
+  #panel .row button { padding: 6px 2px; border-radius: 7px; border: 1px solid #2a3550; background: #151b28; color: #9fb0c8; font: 12px system-ui, sans-serif; cursor: pointer; }
+  #panel .row button:disabled { opacity: 0.45; cursor: default; }
+  #panel input[type=text] { width: 100%; background: #151b28; color: #cfe0ff; border: 1px solid #2a3550; border-radius: 7px; padding: 4px 6px; font: 12px system-ui, sans-serif; box-sizing: border-box; }
+  #mpStatus { color: #7488a8; font-size: 11px; margin: 2px 0 4px; min-height: 15px; }
+  #mpStatus.mpLive { color: #9fe8b8; }
   #selPanel {
     position: fixed; right: 12px; bottom: 12px; z-index: 10;
     background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
@@ -110,7 +115,12 @@
   <div class="row"><label for="tr">Trail</label><input id="tr" type="range" min="0" max="100" value="50"><output id="trV"></output></div>
   <div class="row"><label for="mv">Voices</label><select id="mv"><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option><option value="48">48</option><option value="64">64</option></select><output>&nbsp;</output></div>
   <div class="row"><label for="sm">Steal</label><select id="sm"><option value="0" selected>Oldest</option><option value="1">Furthest</option></select><output>&nbsp;</output></div>
-  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%)</div>
+  <div class="sub">Multiplayer</div>
+  <div class="row"><label for="mpCode">Room code</label><input id="mpCode" type="text" maxlength="5" placeholder="e.g. K7X2M" autocomplete="off"><span></span></div>
+  <div class="row"><button id="mpHost" type="button">Host game</button><span></span><button id="mpJoin" type="button">Join</button></div>
+  <div class="row hidden" id="mpTurnRow"><button id="mpEndTurn" type="button">End turn</button><span></span><button id="mpLeave" type="button">Leave</button></div>
+  <div id="mpStatus">Offline: singleplayer</div>
+  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%) &middot; Multiplayer: Host game makes a 5-character room code, your friend opens the same URL and joins with that code &middot; build walls/spawners on your turn, then press End turn &middot; pushing balls is off in multiplayer (worlds stay identical)</div>
   </div>
 </div>
 
@@ -149,6 +159,7 @@
   <button id="delBtn" class="hidden">Delete</button>
 </div>
 
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" crossorigin="anonymous"></script>
 <script>
 "use strict";
 /* =====================================================================
@@ -224,6 +235,20 @@
      de uitersten van het veld meer
    - de volledige UI is Engels (modi, knoppen, slider-labels,
      golf-/laddernamen, status- en foutmeldingen)
+   - MULTIPLAYER via WebRTC (publieke PeerJS-cloud): Host game maakt
+     een 5-tekens kamercode, de ander opent dezelfde URL en klikt
+     Join met die code; daarna praten de browsers rechtstreeks met
+     elkaar (P2P, de cloud valt dan weg). Omstebeurts bouwen: muren
+     + spawners plaatsen en verwijderen mag alleen tijdens je eigen
+     beurt (knop End turn), spawner-instellingen (sliders, FM, golf)
+     gaan binnen ~0,5 s mee naar de ander, en de host stuurt elke
+     2 s een compacte bal-status als drift-correctie (verschillen in
+     framerate/afronding groeien zo niet uit tot echte desync).
+     Ballen duwen staat in multiplayer uit (de werelden moeten gelijk
+     blijven); veldbreedte/-hoogte, Reset en Load zijn vergrendeld
+     zolang de sessie leeft. Het geluid draait bij iedereen lokaal:
+     je hoort je eigen mix, de positie-sync zorgt dat de botsingen
+     ongeveer gelijk klinken
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
      zichtbaar zodra je iets aantikt, weg als je niks selecteert
@@ -621,9 +646,13 @@ function uploadWallColors(w) {
 /* muren: lijnstukken met eigen bounce */
 const walls = [];
 let wallSeq = 0;
-function addWall(x0, y0, x1, y1, rest) {
+function addWall(x0, y0, x1, y1, rest, id) {
+  // optionele id: multiplayer-acties en de opslag herstellen muren met
+  // hun eigen id, zodat beide kanten het over dezelfde muur hebben
+  const wid = id !== undefined ? id : ++wallSeq;
+  if (id !== undefined && id > wallSeq) wallSeq = id;
   const w = {
-    id: ++wallSeq, x0, y0, x1, y1, rest,
+    id: wid, x0, y0, x1, y1, rest,
     colorBuf: gl.createBuffer(), color: [1, 1, 1], dirty: true
   };
   walls.push(w);
@@ -639,12 +668,14 @@ function wallColor(w) {
 /* spawners: elk met interval, grootte, eigen kleur en toonhoogte */
 const spawners = [];
 let spawnerSeq = 0;
-function addSpawner(x, y) {
+function addSpawner(x, y, id) {
   // altijd (net) binnen het veld plaatsen: een spawner op of buiten de
   // rand spawnt ballen die direct weer despawnen en lijken "dood"
   x = Math.max(-fieldHalfX + 1.2, Math.min(fieldHalfX - 1.2, x));
   y = Math.max(-fieldHalfY + 1.2, Math.min(fieldHalfY - 1.2, y));
-  const idx = ++spawnerSeq;
+  // optionele id: multiplayer-acties en de opslag herstellen de eigen id
+  const idx = id !== undefined ? id : ++spawnerSeq;
+  if (id !== undefined && id > spawnerSeq) spawnerSeq = id;
   const sp = {
     id: idx, x, y, interval: 1.5, size: 0.7, timer: 0, angle: 270, speed: 25,
     wave: 0, vol: 1, sample: null,
@@ -678,6 +709,8 @@ function findSelected(kind, id) {
 }
 function deleteSelected() {
   if (!selected) return;
+  if (mpConn && !myTurn) return;            // multiplayer: alleen op je beurt
+  const delKind = selected.kind, delId = selected.id;
   const arr = selected.kind === "spawner" ? spawners : walls;
   const i = arr.findIndex(o => o.id === selected.id);
   if (i >= 0) {
@@ -687,6 +720,7 @@ function deleteSelected() {
     if (o.arrowBuf) gl.deleteBuffer(o.arrowBuf);
     if (o.sample) o.sample = null;
     arr.splice(i, 1);
+    mpSend({ t: "del", kind: delKind, id: delId });
   }
   selected = null;
   syncSelPanel();
@@ -1215,7 +1249,7 @@ function selectAt(p) {
  * de PC); gebruikt dezelfde zoeklogica als selecteren */
 function deleteAt(p) {
   const hit = pickAt(p);
-  if (!hit) return;
+  if (!hit) return null;                    // multiplayer: wat er precies wegging
   const arr = hit.kind === "spawner" ? spawners : walls;
   const i = arr.findIndex(o => o.id === hit.id);
   if (i >= 0) {
@@ -1230,6 +1264,7 @@ function deleteAt(p) {
     selected = null;
     syncSelPanel();
   }
+  return hit;
 }
 
 /* ligt er een actieve bal onder de cursor (marge in wereld-eenheden)?
@@ -1300,32 +1335,37 @@ canvas.addEventListener("pointerdown", (e) => {
       // - tik zonder slepen = selecteren
       // - dubbelklik = spawner plaatsen (dblclick hieronder)
       // - rechtermuisknop = camera schuiven; zonder bewegen = verwijderen
-      if (p && ballNear(p, 1.5)) {
+      // multiplayer: ballen duwen staat uit (werelden gelijk houden) en
+      // bouwen mag alleen tijdens je eigen beurt
+      if (p && ballNear(p, 1.5) && !mpConn) {
         gesture = {
           kind: "swipe", last: p,
           sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
         };
       } else {
-        if (p) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+        if (p && mpCanBuild()) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
         gesture = { kind: "wall" };
       }
     } else if (mode === "wall") {
-      if (p) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
+      if (p && mpCanBuild()) dragWall = { x0: p[0], y0: p[1], x1: p[0], y1: p[1] };
       gesture = { kind: "wall" };
-    } else if (mode === "play") {
+    } else if (mode === "play" && !mpConn) {
       gesture = {
         kind: "swipe", last: p,
         sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false
       };
+    } else if (mode === "play") {          // multiplayer: niet duwen, wel selecteren
+      gesture = { kind: "mpTap" };
     } else {   // spawner-modus: lang indrukken = plaatsen (slepen breekt af)
       const g = {
         kind: "spawnerGesture", sx: e.clientX, sy: e.clientY,
         t0: performance.now(), moved: false, placed: false,
         timer: setTimeout(() => {
-          if (!g.moved) {
+          if (!g.moved && mpCanBuild()) {
             const p = planePoint(g.sx, g.sy);
             if (p) {
               const sp = addSpawner(p[0], p[1]);
+              mpSend({ t: "spawn", sp: mpSpFields(sp) });
               selected = { kind: "spawner", id: sp.id };
               syncSelPanel();
               g.placed = true;
@@ -1398,12 +1438,16 @@ function endPointer(e) {
   gesture = null;
   if (g && g.kind === "panMouse") {
     // rechtermuisknop losgelaten ZONDER schuiven = de muur of spawner
-    // onder de cursor verwijderen
-    if (!g.moved && e.type === "pointerup") deleteAt(planePoint(e.clientX, e.clientY));
+    // onder de cursor verwijderen (multiplayer: alleen op je beurt)
+    if (!g.moved && e.type === "pointerup" && mpCanBuild()) {
+      const hit = deleteAt(planePoint(e.clientX, e.clientY));
+      if (hit) mpSend({ t: "del", kind: hit.kind, id: hit.id });
+    }
   } else if (g && g.kind === "wall" && dragWall) {
     const len = Math.hypot(dragWall.x1 - dragWall.x0, dragWall.y1 - dragWall.y0);
     if (len > 0.5) {
       const w = addWall(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, 0.85);
+      mpSend({ t: "wall", id: w.id, x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest });
       selected = { kind: "wall", id: w.id };
       syncSelPanel();
     } else {
@@ -1411,6 +1455,13 @@ function endPointer(e) {
       selectAt(planePoint(e.clientX, e.clientY));
     }
     dragWall = null;
+  } else if (g && g.kind === "wall") {
+    // muur-gebaar zonder muur in de hand (multiplayer: niet jouw beurt)
+    // = alleen het ding onder de cursor selecteren
+    selectAt(planePoint(e.clientX, e.clientY));
+  } else if (g && g.kind === "mpTap") {
+    // multiplayer-tik (duwen staat uit): alleen selecteren
+    selectAt(planePoint(e.clientX, e.clientY));
   } else if (g && g.kind === "swipe") {
     // tik zonder beweging = selecteren, hoe lang je ook inhoudt (op een
     // telefoon is een tik vaak langer dan 300 ms en dan selecteerde hij niks)
@@ -1451,8 +1502,9 @@ canvas.addEventListener("pointercancel", endPointer);
 // in het menu te wisselen
 canvas.addEventListener("dblclick", (e) => {
   const p = planePoint(e.clientX, e.clientY);
-  if (!p) return;
+  if (!p || !mpCanBuild()) return;          // multiplayer: alleen op je beurt
   const sp = addSpawner(p[0], p[1]);
+  mpSend({ t: "spawn", sp: mpSpFields(sp) });
   selected = { kind: "spawner", id: sp.id };
   syncSelPanel();
 });
@@ -1522,6 +1574,243 @@ $("mv").addEventListener("change", e => {
 $("sm").addEventListener("change", e => {
   stealMode = +e.target.value === STEAL_FURTHEST ? STEAL_FURTHEST : STEAL_OLDEST;
 });
+
+/* ------------------------------------------- multiplayer (WebRTC via
+ * de publieke PeerJS-cloud): Host game maakt een 5-tekens kamercode,
+ * je vriend opent dezelfde URL en klikt Join met die code; daarna
+ * praten de browsers rechtstreeks met elkaar (P2P, de cloud valt
+ * dan weg). Omstebeurts bouwen: muren + spawners plaatsen en
+ * verwijderen mag alleen tijdens je eigen beurt (knop End turn);
+ * spawner-instellingen (sliders, FM, golfvorm) gaan binnen ~0,5 s
+ * naar de ander; de host stuurt elke 2 s een compacte bal-status
+ * als drift-correctie, want framerate en afronding laten twee lokale
+ * simulaties langzaam uit elkaar lopen. Ballen duwen staat in
+ * multiplayer uit (werelden gelijk houden) en veldbreedte/-hoogte,
+ * Reset en Load zijn vergrendeld zolang de sessie leeft. Het geluid
+ * draait bij iedereen lokaal: de positie-sync zorgt dat de botsingen
+ * ongeveer tegelijk klinken, maar je mix is je eigen. */
+let mpPeer = null, mpConn = null;          // PeerJS-hoofdobject + datakanaal
+let mpRole = null;                         // "host" | "guest" | null
+let mpState = "offline";                   // offline | hosting | joining | live
+let myTurn = false;                        // multiplayer: jij aan de beurt?
+let mpCode = "";                           // 5-tekens kamercode
+let mpLastSync = 0, mpLastFlush = 0;       // performance.now()-tijdstempels
+const mpEdits = new Map();                 // spawner-id -> laatst verstuurde instellingen
+
+function mpCanBuild() { return !mpConn || myTurn; }
+
+function mpSpFields(sp) {
+  return { id: sp.id, x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
+    interval: sp.interval, size: sp.size, angle: sp.angle, speed: sp.speed,
+    vol: sp.vol, weight: sp.weight, vdb: sp.velDb,
+    wave: Math.max(0, Math.min(3, sp.wave | 0)), mode: sp.mode,
+    atk: +sp.atk.toFixed(4), dcy: +sp.dcy.toFixed(4), rel: +sp.rel.toFixed(4),
+    fm: { on: sp.fm.on ? 1 : 0, m: sp.fm.mods.map(m => [m.en ? 1 : 0, +m.r.toFixed(3), +m.i.toFixed(2)]) } };
+}
+function mpApplySpawner(s) {
+  let sp = spawners.find(x => x.id === s.id);
+  if (!sp) sp = addSpawner(s.x, s.y, s.id);   // klemt zelf binnen het veld
+  sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
+  sp.speed = s.speed; sp.vol = s.vol;
+  sp.weight = s.weight !== undefined ? Math.max(0, Math.min(100, s.weight)) : 50;
+  sp.velDb = s.vdb !== undefined ? Math.max(-24, Math.min(0, +s.vdb)) : synth.velDepthDb;
+  sp.wave = Math.max(0, Math.min(3, s.wave | 0));
+  sp.mode = s.mode === MODE_SAMPLER ? MODE_SAMPLER : MODE_SYNTH;
+  sp.atk = s.atk !== undefined ? s.atk : synth.attack;
+  sp.dcy = s.dcy !== undefined ? s.dcy : synth.decay;
+  sp.rel = s.rel !== undefined ? s.rel : synth.release;
+  if (s.fm) {
+    sp.fm.on = !!s.fm.on;
+    const arr = s.fm.m || [];
+    for (let k = 0; k < 4; k++) {
+      const m = arr[k];
+      if (m && m.length >= 3) sp.fm.mods[k] = { en: !!m[0], r: +m[1] || 1, i: +m[2] || 0 };
+    }
+  }
+  if (selected && selected.kind === "spawner" && selected.id === sp.id) syncSelPanel();
+  return sp;
+}
+function mpDelete(kind, id) {
+  const arr = kind === "spawner" ? spawners : walls;
+  const i = arr.findIndex(o => o.id === id);
+  if (i < 0) return;
+  const o = arr[i];
+  if (o.colorBuf) gl.deleteBuffer(o.colorBuf);
+  if (o.arrowBuf) gl.deleteBuffer(o.arrowBuf);
+  if (o.sample) o.sample = null;
+  arr.splice(i, 1);
+  if (selected && selected.kind === kind && selected.id === id) {
+    selected = null; syncSelPanel();
+  }
+}
+function mpBuildSync() {
+  return { t: "sync",
+    b: balls.map(b => [b.active ? 1 : 0, +b.x.toFixed(2), +b.y.toFixed(2),
+      +b.vx.toFixed(2), +b.vy.toFixed(2), +b.r.toFixed(2), Math.round(b.hue), b.spawned ? 1 : 0]),
+    tm: spawners.map(sp => +sp.timer.toFixed(3)) };
+}
+function mpApplySync(m) {
+  const arr = m.b || [];
+  for (let i = 0; i < balls.length && i < arr.length; i++) {
+    const b = balls[i], s = arr[i];
+    const act = s[0] > 0;
+    if (b.active !== act) { b.active = act; b.flash = 0.05; }
+    if (act) {
+      const dx = s[1] - b.x, dy = s[2] - b.y;
+      if (Math.hypot(dx, dy) > 25) { b.x = s[1]; b.y = s[2]; }   // grote drift: metek goed
+      else { b.x += dx * 0.3; b.y += dy * 0.3; }                 // kleine: zacht bijschuiven
+      b.vx = s[3]; b.vy = s[4];
+      if (Math.abs(b.r - s[5]) > 0.01) { b.r = s[5]; b.flash = 0.05; }
+      if (Math.abs(b.hue - s[6]) > 0.5) { b.hue = s[6]; b.flash = 0.05; }
+      b.spawned = s[7] > 0;
+    }
+  }
+  const tm = m.tm || [];
+  for (let i = 0; i < spawners.length && i < tm.length; i++) spawners[i].timer = tm[i];
+}
+function mpSend(o) {
+  if (!mpConn) return;
+  try { mpConn.send(o); } catch (err) { /* kanaal weg? het close-event regelt de rest */ }
+}
+function mpOnMsg(m) {
+  if (!m || typeof m !== "object") return;
+  try {
+    if (m.t === "world") {
+      applyWorld(m.w);
+      mpEdits.clear();
+      mpRole = "guest"; myTurn = false; mpState = "live";
+      mpUi(); status("Multiplayer world loaded");
+    } else if (m.t === "turn") {
+      myTurn = !!m.you; mpUi();
+    } else if (m.t === "wall") {
+      addWall(m.x0, m.y0, m.x1, m.y1, m.rest, m.id);
+    } else if (m.t === "spawn" || m.t === "edit") {
+      mpApplySpawner(m.sp);
+      mpEdits.set(m.sp.id, JSON.stringify(m.sp));   // voorkom echo terug naar de ander
+    } else if (m.t === "del") {
+      mpDelete(m.kind, m.id);
+    } else if (m.t === "sync") {
+      mpApplySync(m);
+    }
+  } catch (err) { /* onbekend of kapot bericht negeren */ }
+}
+function mpCleanup(msg) {
+  if (mpConn) { try { mpConn.close(); } catch (err) {} }
+  mpConn = null;
+  if (mpPeer) { try { mpPeer.destroy(); } catch (err) {} }
+  mpPeer = null; mpRole = null; myTurn = false; mpState = "offline";
+  mpEdits.clear();
+  mpUi();
+  if (msg) status(msg);
+}
+function mpWireConn(c) {
+  mpConn = c;
+  try {
+    c.on("data", mpOnMsg);
+    c.on("close", () => { if (mpConn === c) mpCleanup("Connection lost"); });
+    c.on("error", () => { if (mpConn === c) mpCleanup("Connection error"); });
+  } catch (err) {}
+}
+function mpHostGame() {
+  if (typeof Peer === "undefined") {
+    $("mpStatus").textContent = "Multiplayer unavailable (library failed to load)";
+    status("Multiplayer library not loaded");
+    return;
+  }
+  mpCleanup();
+  const alphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  mpCode = "";
+  for (let i = 0; i < 5; i++) mpCode += alphabet[Math.floor(Math.random() * alphabet.length)];
+  mpPeer = new Peer("mbm-" + mpCode);
+  mpState = "hosting";
+  mpPeer.on("open", () => { mpUi(); status("Room " + mpCode); });
+  mpPeer.on("error", err => {
+    if (err && err.type === "unavailable-id") { mpHostGame(); return; }   // code bezet: nieuwe proberen
+    mpCleanup("Multiplayer error: " + (err && err.type ? err.type : "unknown"));
+  });
+  mpPeer.on("connection", c => {
+    if (mpConn) { try { c.close(); } catch (err) {} return; }   // één gast per kamer
+    mpWireConn(c);
+    c.on("open", () => {
+      mpRole = "host"; mpState = "live"; myTurn = true;          // de host begint
+      c.send({ t: "world", w: JSON.parse(serializeWorld()) });
+      mpUi(); status("Player joined: your turn");
+    });
+  });
+  mpUi();
+}
+function mpJoinGame() {
+  if (typeof Peer === "undefined") {
+    $("mpStatus").textContent = "Multiplayer unavailable (library failed to load)";
+    status("Multiplayer library not loaded");
+    return;
+  }
+  const code = ($("mpCode").value || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (code.length !== 5) { status("Room code is 5 characters"); return; }
+  mpCleanup();
+  mpCode = code;
+  mpPeer = new Peer();
+  mpState = "joining"; mpRole = "guest";
+  mpPeer.on("open", () => {
+    const c = mpPeer.connect("mbm-" + code, { reliable: true });
+    mpWireConn(c);
+    c.on("open", () => { mpState = "live"; mpUi(); status("Connected"); });
+    mpUi();
+  });
+  mpPeer.on("error", err => {
+    if (err && err.type === "peer-unavailable") mpCleanup("Room " + code + " not found");
+    else mpCleanup("Multiplayer error: " + (err && err.type ? err.type : "unknown"));
+  });
+  mpUi();
+}
+function mpUi() {
+  const live = mpState === "live";
+  $("mpHost").classList.toggle("hidden", mpState !== "offline");
+  $("mpJoin").classList.toggle("hidden", mpState !== "offline");
+  $("mpCode").disabled = mpState !== "offline";
+  $("mpLeave").classList.toggle("hidden", mpState === "offline");
+  $("mpTurnRow").classList.toggle("hidden", !live);
+  $("mpEndTurn").disabled = !live || !myTurn;
+  // wereld-grote solo-acties zijn geen solo-acties meer zolang de sessie leeft
+  for (const id of ["fw", "fh", "btnReset", "btnLoad"]) $(id).disabled = !!mpConn;
+  const st = $("mpStatus");
+  st.classList.toggle("mpLive", live);
+  if (live) st.textContent = myTurn
+    ? "Your turn: build walls/spawners, then End turn"
+    : "Other player is building...";
+  else if (mpState === "hosting") st.textContent = "Room " + mpCode + ": give this code + the URL to your friend";
+  else if (mpState === "joining") st.textContent = "Connecting to room " + mpCode + "...";
+  else st.textContent = "Offline: singleplayer";
+}
+function mpFrameTick(now) {
+  if (!mpConn) return;
+  // spawner-instellingen (sliders, FM, golf): max 1 bericht per spawner per 0,5 s
+  if (now - mpLastFlush > 500) {
+    mpLastFlush = now;
+    for (const sp of spawners) {
+      const snap = JSON.stringify(mpSpFields(sp));
+      if (mpEdits.get(sp.id) !== snap) {
+        mpEdits.set(sp.id, snap);
+        mpSend({ t: "edit", sp: JSON.parse(snap) });
+      }
+    }
+  }
+  // host = de baas over de ballen: elke 2 s de compacte bal-status
+  if (mpRole === "host" && now - mpLastSync > 2000) {
+    mpLastSync = now;
+    mpSend(mpBuildSync());
+  }
+}
+$("mpHost").addEventListener("click", mpHostGame);
+$("mpJoin").addEventListener("click", mpJoinGame);
+$("mpEndTurn").addEventListener("click", () => {
+  if (!mpConn || !myTurn) return;
+  myTurn = false;
+  mpSend({ t: "turn", you: true });
+  mpUi();
+});
+$("mpLeave").addEventListener("click", () => mpCleanup("Left multiplayer"));
+mpUi();
 
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
   $(id).addEventListener("click", () => {
@@ -1972,6 +2261,7 @@ function serializeWorld() {
     mv: MAX_VOICES,
     sm: stealMode,
     spawners: spawners.map(sp => ({
+      id: sp.id,
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
       speed: sp.speed, vol: sp.vol, weight: sp.weight, vdb: sp.velDb,
@@ -1981,6 +2271,7 @@ function serializeWorld() {
       smp: sampleToB64(sp.sample)
     })),
     walls: walls.map(w => ({
+      id: w.id,
       x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest
     })),
     cnt: persistentCount,
@@ -2004,7 +2295,7 @@ function applyWorld(o) {
   if (o.fw !== undefined || o.fh !== undefined)
     setFieldSize(o.fw !== undefined ? o.fw : fieldHalfX, o.fh !== undefined ? o.fh : fieldHalfY);
   for (const s of (o.spawners || [])) {
-    const sp = addSpawner(s.x, s.y);
+    const sp = addSpawner(s.x, s.y, s.id);   // opslag met id (v5+) herstelt de eigen id
     sp.interval = s.interval; sp.size = s.size; sp.angle = s.angle;
     sp.speed = s.speed; sp.vol = s.vol;   // note = plek op het canvas (wordt live berekend)
     // gewicht + velocity-diepte per spawner (opslag van vóór v4 = de standaardwaarden)
@@ -2028,7 +2319,7 @@ function applyWorld(o) {
       }
     }
   }
-  for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest);
+  for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest, w.id);
   for (const b of balls) { b.active = false; b.spawned = false; }
   if (o.cnt !== undefined) {
     persistentCount = Math.max(0, Math.min(25, o.cnt | 0));
@@ -2171,6 +2462,7 @@ function frame() {
     cam.distance + 2 * (fieldHalfX + fieldHalfY));   // ver genoeg voor heel het veld, ook volledig uitgezoomd
 
   stepPhysics(dt);
+  mpFrameTick(now);          // multiplayer: sync-timers (edit-flush + drift-correctie)
 
   // flash-uitfading + kleuren opnieuw uploaden als nodig
   const fd = Math.exp(-FLASH_DECAY * dt);
