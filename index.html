@@ -31,6 +31,7 @@
   .row output { color: #cfe0ff; text-align: right; font-variant-numeric: tabular-nums; }
   .sub { font-size: 11px; color: #7488a8; margin: 10px 0 2px; }
   input[type=range] { width: 100%; accent-color: #4f8cff; margin: 0; }
+  .row select { width: 100%; background: #151b28; color: #cfe0ff; border: 1px solid #2a3550; border-radius: 7px; padding: 4px 6px; font: 12px system-ui, sans-serif; box-sizing: border-box; }
   #selPanel {
     position: fixed; right: 12px; bottom: 12px; z-index: 10;
     background: rgba(16,21,33,0.9); border: 1px solid #2a3550; border-radius: 10px;
@@ -107,7 +108,9 @@
   <div class="row"><label for="fw">Field width</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
   <div class="row"><label for="fh">Field height</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
   <div class="row"><label for="tr">Trail</label><input id="tr" type="range" min="0" max="100" value="50"><output id="trV"></output></div>
-  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%)</div>
+  <div class="row"><label for="mv">Voices</label><select id="mv"><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option><option value="48">48</option><option value="64">64</option></select><output>&nbsp;</output></div>
+  <div class="row"><label for="sm">Steal</label><select id="sm"><option value="0" selected>Oldest</option><option value="1">Furthest</option></select><output>&nbsp;</output></div>
+  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%)</div>
   </div>
 </div>
 
@@ -188,11 +191,14 @@
      weg; de ADR-envelope
      is per spawner instelbaar (standaardwaarden in Instellingen)
    - stem-pool tegen CPU-gekraak: maximaal 16 gelijktijdige stemmen
-     (elk ~5 WebAudio-nodes). Zonder pool lopen bij veel botsingen
+     (elk ~5 WebAudio-nodes; standaard 16, instelbaar tot 64 in
+     Instellingen). Zonder pool lopen bij veel botsingen
      honderden stemmen tegelijk, piekt de audio-thread en vallen er
      buffer-underruns: gekraak ook zónder clipping. Is de pool vol,
-     dan fadet de oudste stem in 3 ms weg (geen klik) en worden
-     afgeronde stemmen meteen ontkoppeld
+     dan fadet de te stelen stem in 3 ms weg (geen klik) en worden
+     afgeronde stemmen meteen ontkoppeld; welke stem gestolen wordt
+     is instelbaar: de oudste (standaard) of degene het verst van
+     het cameramikpunt (midden van het scherm)
    - afvuursnelheid per spawner 0 t/m 100 (was max 20)
    - gewicht per spawner (0 t/m 100, default 50 = x1,0): schaalt de
      zwaartekracht en de duw-weerstand van swipe; zwaardere ballen
@@ -731,21 +737,38 @@ function ensureAudio() {
  * tegelijk (elk ~5 nodes, levensduur tot ~2 s of langer). De audio-
  * thread piekt dan, de uitgangsbuffer loopt leeg (underrun) en dat
  * klinkt als gekraak/zand, ook al is er géén clipping. Daarom max.
- * MAX_VOICES gelijktijdige tonen; is de pool vol, dan fadet de oudste
- * stem in een paar ms weg (geen klik) en wordt de stem gestolen. */
-const MAX_VOICES = 16;
+ * MAX_VOICES gelijktijdige tonen (instelbaar in Instellingen, 16 t/m
+ * 64, standaard 16); is de pool vol, dan wordt er een stem gestolen:
+ * standaard de OUDSTE stem, of (instelbaar) de stem die het VERST
+ * van het cameramikpunt (midden van het scherm) klinkt. De gestolen
+ * stem fadet in een paar ms weg (geen klik). */
+let MAX_VOICES = 16;
+const STEAL_OLDEST = 0, STEAL_FURTHEST = 1;
+let stealMode = STEAL_OLDEST;          // 0 = oudste stem, 1 = verste stem
 const activeVoices = [];
 
 function stealVoice(now) {
-  let oldest = null;
-  for (const v of activeVoices) if (!oldest || v.t0 < oldest.t0) oldest = v;
-  if (!oldest) return;
-  const i = activeVoices.indexOf(oldest);
+  let victim = null;
+  if (stealMode === STEAL_FURTHEST) {
+    // verste stem t.o.v. het cameramikpunt: dat blijft altijd het
+    // midden van het scherm, dus dit is de stem die je het minst
+    // opvalt dat ze wegvalt (pan + afstand dempen haar al)
+    let bestD = -1;
+    for (const v of activeVoices) {
+      const d = Math.hypot((v.x || 0) - camTarget[0], (v.y || 0) - camTarget[1]);
+      if (d > bestD) { victim = v; bestD = d; }
+    }
+  } else {
+    // standaard: de stem die het langst klinkt
+    for (const v of activeVoices) if (!victim || v.t0 < victim.t0) victim = v;
+  }
+  if (!victim) return;
+  const i = activeVoices.indexOf(victim);
   if (i >= 0) activeVoices.splice(i, 1);
   try {
-    oldest.gain.gain.cancelScheduledValues(now);
-    oldest.gain.gain.setTargetAtTime(0.0001, now, 0.003);  // 3 ms fade = geen klik
-    for (const s of oldest.srcs) s.stop(now + 0.02);
+    victim.gain.gain.cancelScheduledValues(now);
+    victim.gain.gain.setTargetAtTime(0.0001, now, 0.003);  // 3 ms fade = geen klik
+    for (const s of victim.srcs) s.stop(now + 0.02);
   } catch (err) { /* stem was al gestopt */ }
 }
 
@@ -767,9 +790,10 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   if (t - lastToneTime < 0.025) return;         // rate-limit
   lastToneTime = t;
 
-  // stem-pool: volle pool = oudste stem wegfaden en stelen
+  // stem-pool: volle pool = stem stelen (oudste, of verste t.o.v. het
+  // cameramikpunt, afhankelijk van de instelling)
   while (activeVoices.length >= MAX_VOICES) stealVoice(t);
-  const voice = { t0: t, nodes: [], srcs: [] };
+  const voice = { t0: t, x: ball ? ball.x : 0, y: ball ? ball.y : 0, nodes: [], srcs: [] };
   activeVoices.push(voice);
 
   const f = freq * pitchMul;                    // exact: geen random-detune meer
@@ -1487,6 +1511,18 @@ bind("tr", "trV", p => {
   return Math.round(trailStrength * 100) + "%";
 });
 
+/* ---- stem-pool (Globaal): max aantal gelijktijdige stemmen (16..64,
+ * standaard 16) + welke stem er gestolen wordt als de pool vol zit:
+ * oudste (standaard) of verste t.o.v. het cameramikpunt ---- */
+function setSel(id, v) { const e = $(id); e.value = String(v); e.dispatchEvent(new Event("change")); }
+$("mv").addEventListener("change", e => {
+  MAX_VOICES = Math.max(16, Math.min(64, +e.target.value || 16));
+  e.target.value = String(MAX_VOICES);
+});
+$("sm").addEventListener("change", e => {
+  stealMode = +e.target.value === STEAL_FURTHEST ? STEAL_FURTHEST : STEAL_OLDEST;
+});
+
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
   $(id).addEventListener("click", () => {
     mode = m;
@@ -1927,12 +1963,14 @@ function disposeWorldGl() {
 }
 function serializeWorld() {
   return JSON.stringify({
-    v: 4,
+    v: 5,
     scale: scaleIdx,
     root: rootSemi,
     oct: octaves,
     fw: Math.round(fieldHalfX), fh: Math.round(fieldHalfY),
     tr: Math.round(trailStrength * 100),
+    mv: MAX_VOICES,
+    sm: stealMode,
     spawners: spawners.map(sp => ({
       x: +sp.x.toFixed(4), y: +sp.y.toFixed(4),
       interval: sp.interval, size: sp.size, angle: sp.angle,
@@ -2018,6 +2056,9 @@ function applyWorld(o) {
   setSlider($("fw"), Math.round((fieldHalfX - 50) / 2.5));
   setSlider($("fh"), Math.round((fieldHalfY - 50) / 2.5));
   if (o.tr !== undefined) setSlider($("tr"), Math.max(0, Math.min(100, o.tr | 0)));
+  // stem-pool (opslag van vóór v5 = de standaarden: 16 stemmen, oudste stelen)
+  if (o.mv !== undefined) setSel("mv", Math.max(16, Math.min(64, o.mv | 0)));
+  if (o.sm !== undefined) setSel("sm", o.sm === STEAL_FURTHEST ? STEAL_FURTHEST : STEAL_OLDEST);
   selected = null;
   syncSelPanel();
   status("Creation restored");
