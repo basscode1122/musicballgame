@@ -99,7 +99,7 @@ class FakeOsc extends FakeNode {
   stop() {}
 }
 class FakeBufferSource extends FakeNode {
-  constructor(ctx) { super(ctx); this.buffer = null; this.playbackRate = new FakeParam(1); }
+  constructor(ctx) { this.buffer = null; this.playbackRate = new FakeParam(1); }
   start(t) { this.ctx.log.push({ type: "sample", rate: this.playbackRate.value, at: t }); }
   stop() {}
 }
@@ -236,7 +236,7 @@ function makeWorld() {
   };
 
   /* test-hulpjes, gebonden aan deze wereld */
-  function fire(type, ev) { canvasEl.fire(type, ev); }
+  function fire(type, ev) { if (ev && !ev.type) ev.type = type; canvasEl.fire(type, ev); }
   function pev(x, y, extra) {
     return Object.assign({
       pointerId: 1, pointerType: "mouse", button: 0, buttons: 1,
