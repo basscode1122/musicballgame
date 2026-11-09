@@ -123,6 +123,8 @@
   <div class="row"><label for="fw">Field width</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
   <div class="row"><label for="fh">Field height</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
   <div class="row"><label for="tr">Trail</label><input id="tr" type="range" min="0" max="100" value="50"><output id="trV"></output></div>
+  <div class="sub">Local</div>
+  <div class="row"><label for="wc">Wall color</label><input id="wc" type="range" min="-1" max="360" step="1" value="-1"><output id="wcV"></output></div>
   <div class="row"><label for="mv">Voices</label><select id="mv"><option value="16" selected>16</option><option value="24">24</option><option value="32">32</option><option value="48">48</option><option value="64">64</option></select><output>&nbsp;</output></div>
   <div class="row"><label for="sm">Steal</label><select id="sm"><option value="0" selected>Oldest</option><option value="1">Furthest</option></select><output>&nbsp;</output></div>
   <div class="sub">Multiplayer</div>
@@ -130,7 +132,7 @@
   <div class="row"><button id="mpHost" type="button">Host game</button><span></span><button id="mpJoin" type="button">Join</button></div>
   <div class="row hidden" id="mpLeaveRow"><label>Session</label><span></span><button id="mpLeave" type="button">Leave</button></div>
   <div id="mpStatus">Offline: singleplayer</div>
-  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%) &middot; Multiplayer: Host game makes a 5-character room code, your friend opens the same URL and joins with that code &middot; per turn: place 1 wall or 1 spawner (deleting is free, deleting your own build lets you rebuild), End turn = the button in the bar at the bottom &middot; pushing balls is off in multiplayer (worlds stay identical)</div>
+  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%) &middot; Multiplayer: Host game makes a 5-character room code, your friend opens the same URL and joins with that code &middot; per turn: place 1 wall or 1 spawner (deleting is free, deleting your own build lets you rebuild), End turn = the button in the bar at the bottom &middot; pushing balls is off in multiplayer (worlds stay identical) &middot; the Global settings sync to the other player (except the Local ones: voices, steal, wall color) &middot; your Wall color (Local) paints the walls you place, on both screens &middot; on small screens the turn bar hops above the selection panel so Delete stays reachable</div>
   </div>
 </div>
 
@@ -183,7 +185,9 @@
    - meerdere spawners, elk met eigen interval, grootte en golfvorm
      (Sinus/Blok/Zaag/Driehoek of je eigen microfoon-sample)
    - muren tekenen (modus Muur), met instelbare bounce per muur
-     (0,05 tot 2,0: boven 1,0 versnellen ballen!)
+     (0,05 tot 2,0: boven 1,0 versnellen ballen!), in je eigen
+     muurkleur (Local, standaard auto = kleur volgens bounce); de
+     kleur reist per muur mee naar de ander en naar de opslag
    - globale toonladder (5 standaard ladders op een instelbare grondtoon),
      alles blijft consonant
    - de toonhoogte is ABSOLUUT: volledig bepaald door de plek op het
@@ -262,7 +266,19 @@
      komt de bouw-actie terug. Spawner-instellingen (sliders, FM, golf)
      gaan binnen ~0,5 s mee naar de ander, en de host stuurt elke
      2 s een compacte bal-status als drift-correctie (verschillen in
-     framerate/afronding groeien zo niet uit tot echte desync).
+     framerate/afronding groeien zo niet uit tot echte desync). Die
+     correctie wordt niet meer hard toegepast maar zacht over ~1 s
+     uitgesmeerd: geen zichtbare sprongen of terug-schieten van
+     ballen. Ook de bal-status reist mee met het world-bericht: een
+     gast die midden in een draaiende sessie instapt begint exact op
+     de host-stand en ziet dus géén instap-glitch. De global
+     settings (toonladder, grondtoon, octaven, trail, velocity,
+     attack/decay/release) worden live gesynced; de Local settings
+     (voices, steal, muurkleur) blijven per speler eigen. Muren
+     krijgen de kleur van de speler die ze plaatste (de bounce zit
+     dan in de helderheid), en op smalle schermen schuift de
+     beurt-balk boven het selectiepaneel zodat Delete bereikbaar
+     blijft.
      Ballen duwen staat in multiplayer uit (de werelden moeten gelijk
      blijven); veldbreedte/-hoogte, Reset en Load zijn vergrendeld
      zolang de sessie leeft. Het geluid draait bij iedereen lokaal:
@@ -626,7 +642,8 @@ for (let i = 0; i < BALL_MAX; i++) {
     x: 0, y: 0, vx: 0, vy: 0, r: 0.7,
     angle: 0, spin: 0, flash: 0,
     hue: 0, note: 440, wave: 0, vol: 1, spId: 0, active: false, spawned: false, born: 0,
-    wMul: 1, trail: []          // gewicht (zwaartekracht/duw-factor) + trail-historie
+    wMul: 1, trail: [],          // gewicht (zwaartekracht/duw-factor) + trail-historie
+    mpCx: 0, mpCy: 0             // openstaande multiplayer-driftcorrectie (uit te smeren)
   });
 }
 
@@ -665,13 +682,15 @@ function uploadWallColors(w) {
 /* muren: lijnstukken met eigen bounce */
 const walls = [];
 let wallSeq = 0;
-function addWall(x0, y0, x1, y1, rest, id) {
+function addWall(x0, y0, x1, y1, rest, id, hue) {
   // optionele id: multiplayer-acties en de opslag herstellen muren met
   // hun eigen id, zodat beide kanten het over dezelfde muur hebben
   const wid = id !== undefined ? id : ++wallSeq;
   if (id !== undefined && id > wallSeq) wallSeq = id;
   const w = {
     id: wid, x0, y0, x1, y1, rest,
+    // eigen muurkleur van de speler die hem plaatste: null = auto (bounce)
+    hue: hue === undefined || hue === null ? null : Math.max(0, Math.min(360, Math.round(+hue))),
     colorBuf: gl.createBuffer(), color: [1, 1, 1], dirty: true
   };
   walls.push(w);
@@ -679,9 +698,17 @@ function addWall(x0, y0, x1, y1, rest, id) {
 }
 function wallColor(w) {
   const sel = selected && selected.kind === "wall" && selected.id === w.id;
-  // rood = dood, groen = 1,0 (neutraal), blauw = versneller (boven 1,0)
-  const hue = w.rest <= 1 ? w.rest * 120 : 120 + (w.rest - 1) * 120;
-  return sel ? [0.95, 0.95, 1.0] : hslToRgb(hue, 0.7, 0.45);
+  if (sel) return [0.95, 0.95, 1.0];
+  if (w.hue === null) {
+    // zonder eigen kleur (instelling Auto / oudere muren): kleur = bounce,
+    // rood = dood, groen = 1,0 (neutraal), blauw = versneller (boven 1,0)
+    const hue = w.rest <= 1 ? w.rest * 120 : 120 + (w.rest - 1) * 120;
+    return hslToRgb(hue, 0.7, 0.45);
+  }
+  // eigen kleur: de tint herkent de speler, de bounce zit in de
+  // helderheid (donker = dood, neutraal = midden, feller = versneller)
+  const l = Math.max(0.26, Math.min(0.68, 0.45 + (w.rest - 1) * 0.26));
+  return hslToRgb(w.hue, 0.75, l);
 }
 
 /* spawners: elk met interval, grootte, eigen kleur en toonhoogte */
@@ -993,6 +1020,7 @@ function spawnBall(sp) {
   // gewicht van de spawner: schaalt de zwaartekracht en de duw-weerstand
   slot.wMul = 0.1 + 1.8 * (sp.weight !== undefined ? sp.weight : 50) / 100;
   slot.trail.length = 0;                       // geen sleep van een vorig leven
+  slot.mpCx = 0; slot.mpCy = 0;                // geen openstaande sync-correctie
   if (!slot.colorBuf) slot.colorBuf = gl.createBuffer();
   uploadBallColors(slot, hslToRgb(slot.hue, 0.85, 0.55), hslToRgb(slot.hue + 180, 0.9, 0.68));
 }
@@ -1019,6 +1047,7 @@ function resetPersistent() {
     b.flash = 0;
     b.wMul = 1;
     b.trail.length = 0;
+    b.mpCx = 0; b.mpCy = 0;
     if (!b.colorBuf) b.colorBuf = gl.createBuffer();
     uploadBallColors(b, hslToRgb(b.hue, 0.85, 0.55), hslToRgb(b.hue + 180, 0.9, 0.68));
   }
@@ -1479,8 +1508,8 @@ function endPointer(e) {
   } else if (g && g.kind === "wall" && dragWall) {
     const len = Math.hypot(dragWall.x1 - dragWall.x0, dragWall.y1 - dragWall.y0);
     if (len > 0.5) {
-      const w = addWall(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, 0.85);
-      mpSend({ t: "wall", id: w.id, x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest });
+      const w = addWall(dragWall.x0, dragWall.y0, dragWall.x1, dragWall.y1, 0.85, undefined, wallHue);
+      mpSend({ t: "wall", id: w.id, x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest, hue: w.hue });
       if (mpConn) { mpBuiltId = { kind: "wall", id: w.id }; mpUi(); }   // 1 bouw-actie per beurt
       selected = { kind: "wall", id: w.id };
       syncSelPanel();
@@ -1560,9 +1589,32 @@ const $ = id => document.getElementById(id);
 function fmtTime(sec) {
   return sec < 1 ? Math.round(sec * 1000) + " ms" : sec.toFixed(2) + " s";
 }
+/* multiplayer-status: hier gedeclareerd (en niet pas in het multiplayer-
+ * stuk verderop) omdat de UI-binders hieronder bij de init-run al moeten
+ * kunnen vragen of er een sessie leeft, voor de global-settings-sync */
+let mpPeer = null, mpConn = null;          // PeerJS-hoofdobject + datakanaal
+let mpRole = null;                         // "host" | "guest" | null
+let mpState = "offline";                   // offline | hosting | joining | live
+let myTurn = false;                        // multiplayer: jij aan de beurt?
+let mpCode = "";                           // 5-tekens kamercode
+let mpLastSync = 0, mpLastFlush = 0;       // performance.now()-tijdstempels
+const mpEdits = new Map();                 // spawner-id -> laatst verstuurde instellingen
+let mpBuiltId = null;                      // eigen bouwsel van deze beurt: {kind, id} | null
+/* multiplayer-status staat hierboven al gedeclareerd (bij de UI gebonden
+ * init-run van bind() moet mpConn al bestaan): de global-settings
+ * worden tijdens een sessie live gesynced; de Local-settings
+ * (voices/steal/muurkleur) zijn per speler eigen en gaan nooit mee */
+let mpLastGset = 0;                        // laatste global-settings-flush (performance.now)
+const mpGsetDirty = new Set();             // gewijzigde, nog niet verstuurde global-settings
+let mpGsetGuard = false;                   // ontvangen settings toepassen zonder echo terug
+const MP_GSETS = ["vel", "scale", "root", "oct", "tr", "atk", "dcy", "rel"];
 function bind(id, out, apply) {
   const el = $(id), o = $(out);
-  const upd = () => { o.textContent = apply(+el.value); };
+  const upd = () => {
+    o.textContent = apply(+el.value);
+    // sessie actief? dan gaat deze global-setting binnenkort naar de ander
+    if (mpConn && !mpGsetGuard && MP_GSETS.indexOf(id) >= 0) mpGsetDirty.add(id);
+  };
   el.addEventListener("input", upd);
   upd();
   return el;
@@ -1613,6 +1665,34 @@ $("sm").addEventListener("change", e => {
   stealMode = +e.target.value === STEAL_FURTHEST ? STEAL_FURTHEST : STEAL_OLDEST;
 });
 
+/* ---- muurkleur (LOCAL, wordt nooit gesynced): je eigen tint voor
+ * muren die je plaatst. De kleur reist wel per muur mee (opslag +
+ * multiplayer-bericht), zodat de ander jouw muren in jouw kleur ziet.
+ * -1 = automatisch: dan kleurt de muur naar de bounce zoals vroeger. */
+let wallHue = null;                        // null = auto, anders 0..360
+function wcUpdate() {
+  const p = Math.round(+$("wc").value);
+  wallHue = p < 0 ? null : Math.max(0, Math.min(360, p));
+  const o = $("wcV");
+  if (wallHue === null) {
+    o.textContent = "Auto (bounce)";
+    o.style.background = ""; o.style.color = "";
+  } else {
+    o.textContent = wallHue + "\u00B0";
+    o.style.background = "hsl(" + wallHue + ", 75%, 55%)";   // voorbeeld naast de slider
+    o.style.color = "#101728";
+  }
+  try { localStorage.setItem("mbm-wallhue", wallHue === null ? "-1" : String(wallHue)); }
+  catch (err) { /* opslag mag falen (privé-modus): kleur geldt dan alleen nu */ }
+}
+$("wc").addEventListener("input", wcUpdate);
+try {
+  const opgeslagen = parseInt(localStorage.getItem("mbm-wallhue"), 10);
+  if (!isNaN(opgeslagen))
+    $("wc").value = String(opgeslagen < 0 ? -1 : Math.max(0, Math.min(360, opgeslagen)));
+} catch (err) {}
+wcUpdate();
+
 /* ------------------------------------------- multiplayer (WebRTC via
  * de publieke PeerJS-cloud): Host game maakt een 5-tekens kamercode,
  * je vriend opent dezelfde URL en klikt Join met die code; daarna
@@ -1620,22 +1700,16 @@ $("sm").addEventListener("change", e => {
  * dan weg). Omstebeurts bouwen: muren + spawners plaatsen en
  * verwijderen mag alleen tijdens je eigen beurt (knop End turn);
  * spawner-instellingen (sliders, FM, golfvorm) gaan binnen ~0,5 s
- * naar de ander; de host stuurt elke 2 s een compacte bal-status
- * als drift-correctie, want framerate en afronding laten twee lokale
- * simulaties langzaam uit elkaar lopen. Ballen duwen staat in
- * multiplayer uit (werelden gelijk houden) en veldbreedte/-hoogte,
- * Reset en Load zijn vergrendeld zolang de sessie leeft. Het geluid
- * draait bij iedereen lokaal: de positie-sync zorgt dat de botsingen
- * ongeveer tegelijk klinken, maar je mix is je eigen. */
-let mpPeer = null, mpConn = null;          // PeerJS-hoofdobject + datakanaal
-let mpRole = null;                         // "host" | "guest" | null
-let mpState = "offline";                   // offline | hosting | joining | live
-let myTurn = false;                        // multiplayer: jij aan de beurt?
-let mpCode = "";                           // 5-tekens kamercode
-let mpLastSync = 0, mpLastFlush = 0;       // performance.now()-tijdstempels
-const mpEdits = new Map();                 // spawner-id -> laatst verstuurde instellingen
-let mpBuiltId = null;                      // eigen bouwsel van deze beurt: {kind, id} | null
-
+ * naar de ander; de global settings (behalve de lokale voices/steal)
+ * gaan binnen ~0,25 s mee; de host stuurt elke 2 s een compacte
+ * bal-status als drift-correctie, die de gast zacht over ~1 s
+ * uitstreekt (geen sprongen); bij binnenkomst reist de bal-status
+ * mee met het world-bericht zodat je zonder glitch instapt.
+ * Ballen duwen staat in multiplayer uit (werelden gelijk houden) en
+ * veldbreedte/-hoogte, Reset en Load zijn vergrendeld zolang de
+ * sessie leeft. Het geluid draait bij iedereen lokaal: de positie-sync
+ * zorgt dat de botsingen ongeveer tegelijk klinken, maar je mix is
+ * je eigen. */
 function mpCanPlace() { return !mpConn || (myTurn && !mpBuiltId); }   // bouwen: 1 per beurt
 function mpCanRemove() { return !mpConn || myTurn; }                  // verwijderen: vrij
 function mpPlaceBlocked() {
@@ -1692,7 +1766,7 @@ function mpBuildSync() {
       +b.vx.toFixed(2), +b.vy.toFixed(2), +b.r.toFixed(2), Math.round(b.hue), b.spawned ? 1 : 0]),
     tm: spawners.map(sp => +sp.timer.toFixed(3)) };
 }
-function mpApplySync(m) {
+function mpApplySync(m, hard) {
   const arr = m.b || [];
   for (let i = 0; i < balls.length && i < arr.length; i++) {
     const b = balls[i], s = arr[i];
@@ -1700,8 +1774,12 @@ function mpApplySync(m) {
     if (b.active !== act) { b.active = act; b.flash = 0.05; }
     if (act) {
       const dx = s[1] - b.x, dy = s[2] - b.y;
-      if (Math.hypot(dx, dy) > 25) { b.x = s[1]; b.y = s[2]; }   // grote drift: metek goed
-      else { b.x += dx * 0.3; b.y += dy * 0.3; }                 // kleine: zacht bijschuiven
+      if (hard || Math.hypot(dx, dy) > 25) {
+        b.x = s[1]; b.y = s[2];              // instappen of enorme drift: direct goed
+        b.mpCx = 0; b.mpCy = 0;
+      } else {
+        b.mpCx += dx; b.mpCy += dy;          // kleine drift: zacht uitsmeren (geen sprong)
+      }
       b.vx = s[3]; b.vy = s[4];
       if (Math.abs(b.r - s[5]) > 0.01) { b.r = s[5]; b.flash = 0.05; }
       if (Math.abs(b.hue - s[6]) > 0.5) { b.hue = s[6]; b.flash = 0.05; }
@@ -1711,6 +1789,17 @@ function mpApplySync(m) {
   const tm = m.tm || [];
   for (let i = 0; i < spawners.length && i < tm.length; i++) spawners[i].timer = tm[i];
 }
+/* ontvangen global settings toepassen: via de gewone setSlider(), zodat
+ * de bestaande bind-handlers de waarde, labels en afgeleide dingen
+ * (toonhoogte-berekening e.d.) zelf regelen; de guard voorkomt dat de
+ * ontvangst als eigen wijziging terug wordt gestuurd (echo-loop) */
+function mpApplyGset(s) {
+  mpGsetGuard = true;
+  try {
+    for (const k of MP_GSETS)
+      if (s[k] !== undefined) setSlider($(k), +s[k]);
+  } finally { mpGsetGuard = false; }
+}
 function mpSend(o) {
   if (!mpConn) return;
   try { mpConn.send(o); } catch (err) { /* kanaal weg? het close-event regelt de rest */ }
@@ -1719,19 +1808,25 @@ function mpOnMsg(m) {
   if (!m || typeof m !== "object") return;
   try {
     if (m.t === "world") {
-      applyWorld(m.w);
+      mpGsetGuard = true;                    // instellingen uit de wereld zijn geen eigen wijziging
+      try { applyWorld(m.w); } finally { mpGsetGuard = false; }
       mpEdits.clear();
       mpRole = "guest"; myTurn = false; mpBuiltId = null; mpState = "live";
+      // bal-status reist mee: de gast stapt exact op de host-stand in
+      // (geen glitch van ballen die na 2 s allemaal terugspringen)
+      if (m.b) mpApplySync(m, true);
       mpUi(); status("Multiplayer world loaded");
     } else if (m.t === "turn") {
       myTurn = !!m.you; mpBuiltId = null; mpUi();
     } else if (m.t === "wall") {
-      addWall(m.x0, m.y0, m.x1, m.y1, m.rest, m.id);
+      addWall(m.x0, m.y0, m.x1, m.y1, m.rest, m.id, m.hue);
     } else if (m.t === "spawn" || m.t === "edit") {
       mpApplySpawner(m.sp);
       mpEdits.set(m.sp.id, JSON.stringify(m.sp));   // voorkom echo terug naar de ander
     } else if (m.t === "del") {
       mpDelete(m.kind, m.id);
+    } else if (m.t === "gset") {
+      mpApplyGset(m.s || {});
     } else if (m.t === "sync") {
       mpApplySync(m);
     }
@@ -1743,6 +1838,7 @@ function mpCleanup(msg) {
   if (mpPeer) { try { mpPeer.destroy(); } catch (err) {} }
   mpPeer = null; mpRole = null; myTurn = false; mpBuiltId = null; mpState = "offline";
   mpEdits.clear();
+  mpGsetDirty.clear();
   mpUi();
   if (msg) status(msg);
 }
@@ -1776,7 +1872,9 @@ function mpHostGame() {
     mpWireConn(c);
     c.on("open", () => {
       mpRole = "host"; mpState = "live"; myTurn = true; mpBuiltId = null;   // de host begint
-      c.send({ t: "world", w: JSON.parse(serializeWorld()) });
+      // wereld + de actuele bal-status in één bericht: de gast begint
+      // exact op de stand van de host (geen instap-glitch)
+      c.send(Object.assign(mpBuildSync(), { t: "world", w: JSON.parse(serializeWorld()) }));
       mpUi(); status("Player joined: your turn");
     });
   });
@@ -1828,6 +1926,25 @@ function mpUi() {
   else if (mpState === "hosting") st.textContent = "Room " + mpCode + ": give this code + the URL to your friend";
   else if (mpState === "joining") st.textContent = "Connecting to room " + mpCode + "...";
   else st.textContent = "Offline: singleplayer";
+  mpBarLayout();          // balk kan boven het selectiepaneel moeten schuiven
+}
+/* de beurt-balk onderaan kan op smalle schermen het selectiepaneel
+ * (rechtsonder, met daarin de Delete-knop) overlappen: schuift de
+ * balk dan boven het paneel zodat alles bereikbaar blijft */
+function mpBarLayout() {
+  const bar = $("mpBar");
+  if (!bar || bar.classList.contains("hidden")) return;
+  let bottom = 12;
+  const sel = $("selPanel");
+  if (sel && sel.style.display === "block" && sel.offsetTop !== undefined) {
+    const bw = bar.offsetWidth || 0;
+    const barLeft = (innerWidth - bw) / 2;
+    const selLeft = sel.offsetLeft !== undefined ? sel.offsetLeft : 0;
+    const selRight = selLeft + (sel.offsetWidth || 0);
+    if (selLeft < barLeft + bw && selRight > barLeft)   // ze raken elkaar
+      bottom = Math.max(bottom, innerHeight - sel.offsetTop + 12);
+  }
+  bar.style.bottom = bottom + "px";
 }
 function mpFrameTick(now) {
   if (!mpConn) return;
@@ -1841,6 +1958,15 @@ function mpFrameTick(now) {
         mpSend({ t: "edit", sp: JSON.parse(snap) });
       }
     }
+  }
+  // global settings (behalve de lokale voices/steal/muurkleur): max
+  // 1 bericht per 0,25 s met alles wat sindsdien gewijzigd is
+  if (mpGsetDirty.size && now - mpLastGset > 250) {
+    mpLastGset = now;
+    const s = {};
+    for (const k of mpGsetDirty) s[k] = +$(k).value;
+    mpGsetDirty.clear();
+    mpSend({ t: "gset", s: s });
   }
   // host = de baas over de ballen: elke 2 s de compacte bal-status
   if (mpRole === "host" && now - mpLastSync > 2000) {
@@ -1859,6 +1985,7 @@ $("mpEndTurn").addEventListener("click", () => {
   status("Turn passed");
 });
 $("mpLeave").addEventListener("click", () => mpCleanup("Left multiplayer"));
+window.addEventListener("resize", mpBarLayout);   // balk/paneel-ruiw op smalle schermen
 mpUi();
 
 for (const [id, m] of [["mPlay", "play"], ["mSpawner", "spawner"], ["mWall", "wall"]]) {
@@ -1929,6 +2056,7 @@ function syncSelPanel() {
   if (!obj) {
     // niks geselecteerd: helemáál niks laten zien
     $("selPanel").style.display = "none";
+    mpBarLayout();        // beurt-balk mag weer naar de onderrand
     return;
   }
   $("selPanel").style.display = "block";
@@ -2015,6 +2143,7 @@ function syncSelPanel() {
     setSlider($("sBounce"), Math.round((obj.rest - 0.05) / 1.95 * 100));
     $("sBounceV").textContent = "×" + obj.rest.toFixed(2);
   }
+  mpBarLayout();          // paneel kan de beurt-balk nu (deels) bedekken
 }
 $("sInt").addEventListener("input", e => {
   if (syncing) return;
@@ -2321,7 +2450,8 @@ function serializeWorld() {
     })),
     walls: walls.map(w => ({
       id: w.id,
-      x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest
+      x0: w.x0, y0: w.y0, x1: w.x1, y1: w.y1, rest: w.rest,
+      hue: w.hue === null ? null : w.hue
     })),
     cnt: persistentCount,
     cam: { dist: cam.distance,
@@ -2368,7 +2498,7 @@ function applyWorld(o) {
       }
     }
   }
-  for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest, w.id);
+  for (const w of (o.walls || [])) addWall(w.x0, w.y0, w.x1, w.y1, w.rest, w.id, w.hue);
   for (const b of balls) { b.active = false; b.spawned = false; }
   if (o.cnt !== undefined) {
     persistentCount = Math.max(0, Math.min(25, o.cnt | 0));
@@ -2511,6 +2641,18 @@ function frame() {
     cam.distance + 2 * (fieldHalfX + fieldHalfY));   // ver genoeg voor heel het veld, ook volledig uitgezoomd
 
   stepPhysics(dt);
+  // multiplayer: openstaande drift-correcties zacht uitsmeren over
+  // ~0,7 s (exponentieel), zodat een correctie nooit als sprong of
+  // "terugschieten" zichtbaar is; solo blijft deze stap gratis leeg
+  if (mpConn) {
+    const kf = 1 - Math.exp(-dt / 0.35);
+    for (const b of balls) {
+      if (!b.active || (!b.mpCx && !b.mpCy)) continue;
+      b.x += b.mpCx * kf; b.y += b.mpCy * kf;
+      b.mpCx *= 1 - kf; b.mpCy *= 1 - kf;
+      if (Math.abs(b.mpCx) < 1e-4 && Math.abs(b.mpCy) < 1e-4) { b.mpCx = 0; b.mpCy = 0; }
+    }
+  }
   mpFrameTick(now);          // multiplayer: sync-timers (edit-flush + drift-correctie)
 
   // flash-uitfading + kleuren opnieuw uploaden als nodig

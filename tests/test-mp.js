@@ -209,18 +209,25 @@ t("del-bericht verwijdert spawners en muren", () => {
   ok(!walls.some(x => x.id === 42), "muur 42 weg");
 });
 
-t("sync-bericht corrigeert drift (ver = snap, dichtbij = zacht bijschuiven)", () => {
+t("sync-bericht: grote drift = direct, kleine = zacht uitgesmeerd", () => {
   resetWorld();
   resetPersistent();
   pump(3);
   ok(balls[0].active, "bal 0 actief");
-  balls[0].x = -50; balls[0].y = -40;
+  eq(balls[0].mpCx, 0, "correctie-veld begint leeg");
+  balls[0].x = -50; balls[0].y = -40; balls[0].mpCx = 0; balls[0].mpCy = 0;
   mpOnMsg({ t: "sync", b: [[1, 10, 5, 1, 0, 0.6, 120, 0]], tm: [] });
   near(balls[0].x, 10, 1e-6, "ver weg = meteen gesnapt");
   near(balls[0].y, 5, 1e-6, "ook y gesnapt");
   eq(balls[0].vx, 1, "snelheid overgenomen");
+  eq(balls[0].mpCx, 0, "na de grote snap is er geen openstaande correctie");
+  // kleine drift: géén sprong meer, de correctie wordt uitgesmeerd
+  const b = balls[0];
   mpOnMsg({ t: "sync", b: [[1, 10.7, 5, 1, 0, 0.6, 120, 0]], tm: [] });
-  near(balls[0].x, 10.21, 1e-6, "klein verschil = 30% bijschuiven");
+  near(b.x, 10, 1e-6, "geen directe sprong bij kleine drift");
+  near(b.mpCx, 0.7, 1e-6, "de correctie staat klaar om uit te smeren");
+  pump(120);                                // ~2 s aan frames
+  near(b.mpCx, 0, 0.02, "correctie is binnen 2 s uitgewerkt");
 });
 
 t("host stuurt elke 2 s de drift-correctie", () => {
@@ -277,4 +284,101 @@ t("ballen duwen staat uit in multiplayer (ook op je beurt)", () => {
   const v0 = Math.hypot(b0.vx, b0.vy);
   mpMouseDrag(cx, cy, cx + 60, cy, 110);
   near(Math.hypot(b0.vx, b0.vy), v0, 1e-9, "snelheid onveranderd (duwen uit)");
+});
+
+t("global settings syncen live naar de ander (behalve Voices/Steal)", () => {
+  mpCleanup();
+  mpConn = mpFakeConn(); mpRole = "guest"; mpState = "live"; myTurn = false;
+  mpUi();
+  eq(octaves, 4, "start: 4 octaven");
+  hSetSlider("oct", 5);
+  ok(mpGsetDirty.has("oct"), "octaven-wijziging gemarkeerd voor sync");
+  pump(20);                                  // > 0,25 s
+  const g = mpConn.sent.filter(x => x.t === "gset");
+  ok(g.length >= 1, "gset-bericht verstuurd");
+  eq(g[g.length - 1].s.oct, 5, "sliderwaarde in het bericht");
+  ok(!("mv" in g[g.length - 1].s), "voices is lokaal: niet in het bericht");
+  ok(!("sm" in g[g.length - 1].s), "steal is lokaal: niet in het bericht");
+  // ontvangen settings toepassen zonder echo terug te sturen
+  const sentBefore = mpConn.sent.length;
+  mpOnMsg({ t: "gset", s: { root: 7, vel: 60 } });
+  eq(rootSemi, 7, "grondtoon toegepast");
+  eq(synth.velDepthDb, -14, "velocity toegepast (60 -> -14 dB)");
+  eq(+$("root").value, 7, "de slider meegestuurd met de handler");
+  pump(20);
+  eq(mpConn.sent.length, sentBefore, "ontvangst stuurt niets terug (geen echo)");
+  mpCleanup();
+});
+
+t("muurkleur: eigen tint reist per muur mee, de instelling niet", () => {
+  mpConn = mpFakeConn(); mpRole = "host"; mpState = "live"; myTurn = true; mpBuiltId = null;
+  mpUi();
+  hSetSlider("wc", 200);
+  eq(wallHue, 200, "muurkleur 200 graden");
+  ok(!mpGsetDirty.has("wc"), "muurkleur staat niet tussen de gesyncede globals");
+  eq(localStorage.getItem("mbm-wallhue"), "200", "voorkeur bewaard in localStorage");
+  clickEl("mWall");
+  const [ax, ay] = mpFreeSpot();
+  mpMouseDrag(ax, ay, ax + 200, ay, 130);
+  const w = walls[walls.length - 1];
+  eq(w.hue, 200, "de eigen muur heeft de ingestelde kleur");
+  const msg = mpConn.sent.find(x => x.t === "wall" && x.id === w.id);
+  ok(msg, "muurbericht verstuurd");
+  eq(msg.hue, 200, "kleur reist mee met het muurbericht");
+  // muur van de ander: diens kleur, niet de jouwe
+  mpOnMsg({ t: "wall", id: 60, x0: -5, y0: -6, x1: 5, y1: -6, rest: 1.4, hue: 30 });
+  const w2 = walls.find(x => x.id === 60);
+  eq(w2.hue, 30, "muur van de ander krijgt diens kleur");
+  const c = wallColor(w2);
+  ok(c[0] > c[1] && c[1] > c[2], "hue 30 geeft een oranje-achtige muur");
+  // eigen kleur: bounce zit in de helderheid, niet in de tint
+  w2.rest = 0.05;
+  const cDood = wallColor(w2);
+  ok(cDood[0] < c[0], "dode muur is donkerder maar dezelfde tint");
+  // auto: geen kleur ingesteld = oude bounce-kleur (groen bij rest 1,0)
+  hSetSlider("wc", -1);
+  eq(wallHue, null, "terug naar auto");
+  const w3 = addWall(-2, -8, 2, -8, 1.0);
+  eq(w3.hue, null, "auto = geen eigen kleur op de muur");
+  const c3 = wallColor(w3);
+  ok(c3[1] > c3[0] && c3[1] > c3[2], "rest 1,0 in auto = groen zoals vroeger");
+  // opslag: de kleur van elke muur gaat mee
+  const o = JSON.parse(serializeWorld());
+  eq(o.walls.find(x => x.id === 60).hue, 30, "muurkleur in de opslag");
+});
+
+t("world-bericht neemt de bal-status over: instappen zonder glitch", () => {
+  resetWorld();
+  addSpawner(3, 3);
+  addWall(-4, -4, 4, -4, 0.85);
+  resetPersistent();
+  balls[0].x = 12.3; balls[0].y = -4.2; balls[0].vx = 3; balls[0].vy = -2;
+  const msg = Object.assign(mpBuildSync(), { t: "world", w: JSON.parse(serializeWorld()) });
+  ok(msg.b && msg.b.length >= 10, "bal-status zit in het world-bericht");
+  eq(msg.b[0][1], 12.3, "host-positie van bal 0 erin");
+  // gast: lege wereld + verse (random) ballen -> na het bericht exact gelijk
+  resetWorld();
+  resetPersistent();                          // sabotage: random beginstand
+  mpOnMsg(msg);
+  near(balls[0].x, 12.3, 1e-6, "bal staat direct op de host-positie");
+  near(balls[0].y, -4.2, 1e-6, "ook y");
+  eq(balls[0].vx, 3, "snelheid overgenomen");
+  eq(balls[0].mpCx, 0, "hard toegepast: geen openstaande correctie");
+});
+
+t("beurt-balk schuift boven het selectiepaneel zodra ze overlappen", () => {
+  mpConn = mpFakeConn(); mpRole = "guest"; mpState = "live"; myTurn = true; mpBuiltId = null;
+  mpUi();
+  eq($("mpBar").style.bottom, "12px", "zonder selectie: balk onderaan");
+  const sel = $("selPanel");
+  // simuleer een smal scherm: het paneel raakt de midden-balk
+  sel.offsetLeft = 20; sel.offsetWidth = 760; sel.offsetTop = 300; sel.offsetHeight = 288;
+  const sp = addSpawner(2, 2);
+  selected = { kind: "spawner", id: sp.id };
+  syncSelPanel();
+  eq($("mpBar").style.bottom, "312px", "balk staat boven het paneel (600 - 300 + 12)");
+  selected = null;
+  syncSelPanel();
+  eq($("mpBar").style.bottom, "12px", "paneel dicht: balk terug naar onderen");
+  mpCleanup();
 });
