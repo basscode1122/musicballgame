@@ -107,7 +107,7 @@
   <div class="row"><label for="fw">Veldbreedte</label><input id="fw" type="range" min="0" max="100" value="20"><output id="fwV"></output></div>
   <div class="row"><label for="fh">Veldhoogte</label><input id="fh" type="range" min="0" max="100" value="20"><output id="fhV"></output></div>
   <div class="row"><label for="tr">Trail</label><input id="tr" type="range" min="0" max="100" value="50"><output id="trV"></output></div>
-  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; 2 vingers samen schuiven = camera over het veld (zoals Google Maps) &middot; volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%)</div>
+  <div id="hint">Tik = selecteren &middot; dubbeltik = ballen opnieuw &middot; Play: swipen = duwen &middot; zoom: scrollen of 2 vingers knijpen, richt op de plek onder je cursor/vingers &middot; 2 vingers samen schuiven = camera over het veld (zoals Google Maps) &middot; volledig uitgezoomd = heel speelveld in beeld &middot; Spawner: lang indrukken = plaatsen &middot; Muur: tikken = selecteren, slepen = tekenen &middot; Spawner = Synth of Sampler (opnemen + startpunt, of FM met 4 modulators) &middot; Instellingen: ladder + grondtoon + octaven + veldbreedte/hoogte &middot; Toon = plek op het canvas (midden = A4, hele veldhoogte = ingestelde octaven, zoomvast) &middot; inzoomen dempt wat je niet ziet (tot -8 dB) &middot; geluid pant mee met de botsplek (max 75%) &middot; PC/muis: dubbelklik = spawner plaatsen (Spawner-modus), scrollen = zoomen, rechtermuisknop ingedrukt houden + bewegen = camera/ankerpunt schuiven, linkermuisknop slepen = duwen (Play) of muur tekenen (Muur)</div>
   </div>
 </div>
 
@@ -203,6 +203,12 @@
      Instellingen (0 = onzichtbaar, default 50%)
    - ballen zijn geen 3D-bollen meer maar platte schijven met
      fellere kleuren (minder verlichtingskosten, zelfde look)
+   - PC/muis-besturing: linkermuisknop = tikken/slepen/duwen (Play),
+     klik + sleep = muur tekenen (Muur), DUBBELKLIK = spawner
+     plaatsen (Spawner), scrollen = zoomen rond de cursor,
+     rechtermuisknop ingedrukt houden + bewegen = camera/ankerpunt
+     over het veld schuiven (contextmenu staat uit op het canvas);
+     op touch blijft alles zoals het was (lang indrukken = plaatsen)
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
      zichtbaar zodra je iets aantikt, weg als je niks selecteert
@@ -1171,6 +1177,16 @@ function pushBalls(p, delta) {
 }
 
 canvas.addEventListener("pointerdown", (e) => {
+  // PC/muis: rechtermuisknop ingedrukt houden + bewegen = het
+  // ankerpunt/camera-mikpunt over het veld schuiven (het equivalent
+  // van 2 vingers samen schuiven op touch)
+  if (e.button === 2) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    gesture = { kind: "panMouse", anchor: planePoint(e.clientX, e.clientY) };
+    return;
+  }
+  if (e.button !== 0) return;   // midden/extra muisknoppen: niks doen
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 2) {
@@ -1241,6 +1257,13 @@ canvas.addEventListener("pointermove", (e) => {
     //    zoomAtWorld met de anchor houdt alles op zijn plek
     if (gesture.dist > 1 && d > 1) zoomAtWorld(gesture.anchor, gesture.dist / d);
     gesture.dist = d;
+  } else if (gesture.kind === "panMouse") {
+    // rechtermuisknop: het vastgepakte wereldpunt blijft onder de cursor
+    // (touch: dit is 2 vingers samen schuiven)
+    const now = planePoint(e.clientX, e.clientY);
+    if (now && gesture.anchor) {
+      panCam(gesture.anchor[0] - now[0], gesture.anchor[1] - now[1]);
+    }
   } else if (gesture.kind === "wall") {
     const p = planePoint(e.clientX, e.clientY);
     if (p && dragWall) { dragWall.x1 = p[0]; dragWall.y1 = p[1]; }
@@ -1298,15 +1321,33 @@ function endPointer(e) {
     // tik zonder beweging en zonder plaatsing (lang indrukken plaatst al)
     if (!g.moved && !g.placed) {
       const p = planePoint(e.clientX, e.clientY);
-      const now = performance.now();
-      if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
-      else lastTapTime = now;
+      // dubbeltik = ballen opnieuw laten vallen; op de PC is de
+      // dubbelklik hier gereserveerd voor het PLAATSEN van een spawner
+      if (e.pointerType !== "mouse") {
+        const now = performance.now();
+        if (now - lastTapTime < 350) { resetPersistent(); lastTapTime = 0; }
+        else lastTapTime = now;
+      }
       selectAt(p);
     }
   }
 }
 canvas.addEventListener("pointerup", endPointer);
 canvas.addEventListener("pointercancel", endPointer);
+
+// PC/muis: in de Spawner-modus plaatst een DUBBELKLIK een spawner
+// (op touch is en blijft dat lang indrukken)
+canvas.addEventListener("dblclick", (e) => {
+  if (mode !== "spawner") return;
+  const p = planePoint(e.clientX, e.clientY);
+  if (!p) return;
+  const sp = addSpawner(p[0], p[1]);
+  selected = { kind: "spawner", id: sp.id };
+  syncSelPanel();
+});
+
+// geen contextmenu op het canvas: de rechtermuisknop schuift de camera
+canvas.addEventListener("contextmenu", e => e.preventDefault());
 
 canvas.addEventListener("wheel", (e) => {
   e.preventDefault();
