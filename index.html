@@ -180,8 +180,14 @@
      master-compressor + tanh soft-clipper tegen clipping: bij heel
      veel gelijktijdige tonen schiet de som in de aanval-tijd van de
      compressor nog even boven 1.0 en de tanh knijpt die pieken zacht
-     weg (geen gekraak meer); de ADR-envelope
+     weg; de ADR-envelope
      is per spawner instelbaar (standaardwaarden in Instellingen)
+   - stem-pool tegen CPU-gekraak: maximaal 16 gelijktijdige stemmen
+     (elk ~5 WebAudio-nodes). Zonder pool lopen bij veel botsingen
+     honderden stemmen tegelijk, piekt de audio-thread en vallen er
+     buffer-underruns: gekraak ook zónder clipping. Is de pool vol,
+     dan fadet de oudste stem in 3 ms weg (geen klik) en worden
+     afgeronde stemmen meteen ontkoppeld
    - creaties opslaan in localStorage, laden en het canvas resetten
    - selectiepanel staat los van het Instellingen-menu: altijd
      zichtbaar zodra je iets aantikt, weg als je niks selecteert
@@ -632,7 +638,9 @@ function ensureAudio() {
     // drukte af, maar in zijn aanval-tijd (3 ms) schiet de som bij pieken
     // nog even boven 1.0 en dan clippt de uitgang hard = gekraak. De
     // tanh-curve knijpt die pieken zacht weg (zachte signalen horen daar
-    // vrijwel niets van; oversample 4x tegen vervormings-aliasing)
+    // vrijwel niets van). oversample 2x: tegen vervormings-aliasing, maar
+    // de helft goedkoper dan 4x (de shaper zit op de hele mastermix,
+    // en CPU op de audio-thread = underrun-gekraak)
     const comp = audioCtx.createDynamicsCompressor();
     comp.threshold.value = -12;
     comp.knee.value = 12;
@@ -643,7 +651,7 @@ function ensureAudio() {
     const curve = new Float32Array(1024);
     for (let i = 0; i < 1024; i++) curve[i] = Math.tanh(i / 1023 * 2 - 1);
     clip.curve = curve;
-    clip.oversample = "4x";
+    clip.oversample = "2x";
     const bus = audioCtx.createGain();
     bus.gain.value = 1.0;
     bus.connect(comp);
@@ -653,6 +661,39 @@ function ensureAudio() {
   }
 }
 
+/* ------------------------------------------- stem-pool tegen gekraak
+ * Zonder limiet lopen bij veel botsingen honderden WebAudio-stemmen
+ * tegelijk (elk ~5 nodes, levensduur tot ~2 s of langer). De audio-
+ * thread piekt dan, de uitgangsbuffer loopt leeg (underrun) en dat
+ * klinkt als gekraak/zand, ook al is er géén clipping. Daarom max.
+ * MAX_VOICES gelijktijdige tonen; is de pool vol, dan fadet de oudste
+ * stem in een paar ms weg (geen klik) en wordt de stem gestolen. */
+const MAX_VOICES = 16;
+const activeVoices = [];
+
+function stealVoice(now) {
+  let oldest = null;
+  for (const v of activeVoices) if (!oldest || v.t0 < oldest.t0) oldest = v;
+  if (!oldest) return;
+  const i = activeVoices.indexOf(oldest);
+  if (i >= 0) activeVoices.splice(i, 1);
+  try {
+    oldest.gain.gain.cancelScheduledValues(now);
+    oldest.gain.gain.setTargetAtTime(0.0001, now, 0.003);  // 3 ms fade = geen klik
+    for (const s of oldest.srcs) s.stop(now + 0.02);
+  } catch (err) { /* stem was al gestopt */ }
+}
+
+function armVoiceCleanup(voice) {
+  const lastSrc = voice.srcs[voice.srcs.length - 1];
+  if (!lastSrc) return;
+  lastSrc.onended = () => {
+    for (const n of voice.nodes) { try { n.disconnect(); } catch (err) {} }
+    const i = activeVoices.indexOf(voice);
+    if (i >= 0) activeVoices.splice(i, 1);
+  };
+}
+
 function collisionTone(impactSpeed, freq, pitchMul, ball) {
   ensureAudio();
   if (!audioCtx) return;
@@ -660,6 +701,11 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   const t = audioCtx.currentTime;
   if (t - lastToneTime < 0.025) return;         // rate-limit
   lastToneTime = t;
+
+  // stem-pool: volle pool = oudste stem wegfaden en stelen
+  while (activeVoices.length >= MAX_VOICES) stealVoice(t);
+  const voice = { t0: t, nodes: [], srcs: [] };
+  activeVoices.push(voice);
 
   const f = freq * pitchMul;                    // exact: geen random-detune meer
   const vel = Math.min(1, Math.max(0, impactSpeed / 10));
@@ -676,6 +722,8 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   const rel = Math.max(0.001, sp && sp.rel !== undefined ? sp.rel : synth.release);
 
   const gain = audioCtx.createGain();
+  voice.gain = gain;
+  voice.nodes.push(gain);
   // panning: het geluid volgt de plek van de botsing op het scherm,
   // maximaal 75% naar links of rechts (geen hard panning)
   let outNode = masterBus;
@@ -685,6 +733,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
     panNode.pan.value = nd === null ? 0 : Math.max(-0.75, Math.min(0.75, nd[0]));
     panNode.connect(masterBus);
     outNode = panNode;
+    voice.nodes.push(panNode);
   }
   const velGain = Math.pow(10, synth.velDepthDb * (1 - vel) / 20);
   // volume per spawner, gedempt als de botsing buiten beeld is (zoom-afhankelijk)
@@ -694,6 +743,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   gain.gain.setTargetAtTime(SUSTAIN * peak, t + atk, dcy);
   gain.gain.setTargetAtTime(0.0001, t + atk + GATE, rel);
   const stop = t + atk + GATE + rel * 6 + 0.3;
+  voice.stopAt = stop;
 
   // SAMPLER-modus: de eigen (genormaliseerde) microfoon-opname, gepitcht op
   // de ladder en gestart vanaf het ingestelde startpunt.
@@ -713,6 +763,8 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
     src.connect(gain);
     gain.connect(outNode);                 // via panner + compressor-bus: geen kraak
     src.start(t, off); src.stop(stop);
+    voice.nodes.push(src); voice.srcs.push(src);
+    armVoiceCleanup(voice);
     return;
   }
 
@@ -722,6 +774,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   const osc = audioCtx.createOscillator();
   osc.type = w;
   osc.frequency.value = f;
+  voice.nodes.push(osc); voice.srcs.push(osc);
 
   // FM (optioneel, per spawner): tot 4 sinus-modulators. Frequentie =
   // ratio x de noot; de index geeft de deviatie in Hz als index x noot.
@@ -736,6 +789,7 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
       mo.connect(mg);
       mg.connect(osc.frequency);
       mo.start(t); mo.stop(stop);
+      voice.nodes.push(mo, mg); voice.srcs.push(mo);
     }
   }
 
@@ -744,12 +798,15 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   osc2.frequency.value = f * 2;
   const gain2 = audioCtx.createGain();
   gain2.gain.value = WAVE_HARM[wave] || 0.3;
+  voice.nodes.push(gain2);
 
   osc.connect(gain);
   osc2.connect(gain2); gain2.connect(gain);
   gain.connect(outNode);                   // via panner + compressor-bus: geen kraak
   osc.start(t); osc.stop(stop);
   osc2.start(t); osc2.stop(stop);
+  voice.nodes.push(osc2); voice.srcs.push(osc2);
+  armVoiceCleanup(voice);
 }
 
 /* ------------------------------------------------- ballen spawnen */
