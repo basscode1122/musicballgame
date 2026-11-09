@@ -167,7 +167,9 @@
      Veldhoogte, 100 t/m 600 per kant; standaard 200 x 200): ballen
      despawnen net buiten de rand, de uitzoomgrens en de toonschaal
      passen zich meteen aan
-   - de camera draait niet meer rond (vaste kijkhoek): je kunt in- en
+   - de camera staat recht boven het speelveld en kijkt haaks omlaag
+     (top-down, geen zij-aanzicht of hoek): scherm-omhoog = hoger in
+     het veld = hogere toon. Je kunt in- en
      uitzoomen, richt op de plek onder je cursor of vingers (scrollen
      of 2 vingers knijpen), en met 2 vingers samen schuiven pant je
      de camera over het veld (zoals Google Maps: het veld plakt aan
@@ -999,16 +1001,19 @@ function stepPhysics(dt) {
 }
 
 /* ------------------------------------------------- camera + projectie */
-// vaste kijkhoek (geen rond Draaien meer: alleen in- en uitzoomen)
-const CAM_AZ = 0.35, CAM_EL = 0.18;
+// de camera staat RECHT BOVEN het speelveld en kijkt haaks omlaag
+// (geen zij-aanzicht of hoek meer): scherm-rechts = +x in het veld,
+// scherm-omhoog = +y in het veld (hoger op het scherm = hogere toon)
+const CAM_DIR = [0, 0, 1];
 const cam = { distance: 17 };
 const camTarget = [0, 1.2, 0];   // waar de camera naar kijkt (zoom-mikpunt)
 let camAxis = null, eye = [0, 0, 17];
 const TANH = Math.tan(25 * Math.PI / 180);
 
 /* ---- maximale uitzoom: het HELE speelveld past op het scherm ----
- * Bij deze vaste kijkhoek is de camera-as altijd gelijk, of je nu in-
- * of uitzoomt of het mikpunt verschuift. Uit de projectie volgt per
+ * De camera staat haaks boven het veld, dus de camera-as is altijd
+ * gelijk, of je nu in- of uitzoomt of het mikpunt verschuift. Uit
+ * de projectie volgt per
  * veldhoek hoe ver de camera minstens weg moet staan:
  *   d >= hoekpunt.kijk-as + max(|scherm-x| / (TANH*aspect), |scherm-y| / TANH)
  * De grootste van de vier hoeken, met 5% marge, is de maximale
@@ -1017,7 +1022,7 @@ const TANH = Math.tan(25 * Math.PI / 180);
 function maxCamDist() {
   const aspect = canvas.width / Math.max(1, canvas.height);
   const ax = cameraAxes(
-    [Math.cos(CAM_EL) * Math.sin(CAM_AZ), Math.sin(CAM_EL), Math.cos(CAM_EL) * Math.cos(CAM_AZ)],
+    [CAM_DIR[0], CAM_DIR[1], CAM_DIR[2]],
     [0, 0, 0], [0, 1, 0]);   // precies dezelfde assen als in de render-loop
   let m = 0;
   for (let sy = -1; sy <= 1; sy += 2) for (let sx = -1; sx <= 1; sx += 2) {
@@ -1062,9 +1067,9 @@ function panCam(dx, dy) {
  * de delta's scheef uit. */
 function syncCamera() {
   eye = [
-    camTarget[0] + cam.distance * Math.cos(CAM_EL) * Math.sin(CAM_AZ),
-    camTarget[1] + cam.distance * Math.sin(CAM_EL),
-    camTarget[2] + cam.distance * Math.cos(CAM_EL) * Math.cos(CAM_AZ)
+    camTarget[0] + cam.distance * CAM_DIR[0],
+    camTarget[1] + cam.distance * CAM_DIR[1],
+    camTarget[2] + cam.distance * CAM_DIR[2]
   ];
   camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
 }
@@ -2032,11 +2037,11 @@ function frame() {
   const MD = maxCamDist();
   if (cam.distance > MD) cam.distance = MD;
 
-  // camera (kijkt naar camTarget; vaste kijkhoek, geen rond draaien)
+  // camera (kijkt haaks van boven naar camTarget, geen rond draaien)
   eye = [
-    camTarget[0] + cam.distance * Math.cos(CAM_EL) * Math.sin(CAM_AZ),
-    camTarget[1] + cam.distance * Math.sin(CAM_EL),
-    camTarget[2] + cam.distance * Math.cos(CAM_EL) * Math.cos(CAM_AZ)
+    camTarget[0] + cam.distance * CAM_DIR[0],
+    camTarget[1] + cam.distance * CAM_DIR[1],
+    camTarget[2] + cam.distance * CAM_DIR[2]
   ];
   camAxis = cameraAxes(eye, camTarget, [0, 1, 0]);
   view = mat4View(camAxis, eye);
