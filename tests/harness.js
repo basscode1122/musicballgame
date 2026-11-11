@@ -269,6 +269,8 @@ function makeWorld() {
       document: documentStub,
       window: windowStub,
       localStorage: localStorageStub,
+      btoa: s => Buffer.from(s, "latin1").toString("base64"),   // base64 voor sample-sync/opslag
+      atob: s => Buffer.from(s, "base64").toString("latin1"),
       location: { protocol: "https:" },
       navigator: {},
       innerWidth: 800, innerHeight: 600,
