@@ -230,13 +230,13 @@ t("sync-bericht: grote drift = direct, kleine = zacht uitgesmeerd", () => {
   near(b.mpCx, 0, 0.02, "correctie is binnen 2 s uitgewerkt");
 });
 
-t("host stuurt elke 2 s de drift-correctie", () => {
+t("host stuurt elke 0,5 s de drift-correctie", () => {
   mpConn = mpFakeConn(); mpRole = "host"; mpState = "live"; myTurn = true;
   mpLastSync = -1e9; mpLastFlush = -1e9;
   mpUi();
   pump(130);                                 // ~2,2 s aan frames
   const sync = mpConn.sent.filter(x => x.t === "sync");
-  ok(sync.length >= 1, "sync-bericht verstuurd");
+  ok(sync.length >= 3, "strakke sync: >= 3 berichten in 2,2 s (was 1 per 2 s)");
   eq(sync[0].b.length, balls.length, "alle ballen in de sync");
   eq(sync[0].tm.length, spawners.length, "spawner-timers in de sync");
 });

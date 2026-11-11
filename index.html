@@ -132,7 +132,7 @@
   <div class="row"><button id="mpHost" type="button">Host game</button><span></span><button id="mpJoin" type="button">Join</button></div>
   <div class="row hidden" id="mpLeaveRow"><label>Session</label><span></span><button id="mpLeave" type="button">Leave</button></div>
   <div id="mpStatus">Offline: singleplayer</div>
-  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in mutes what you can't see (down to -8 dB) &middot; sound pans with the collision spot (max 75%) &middot; Multiplayer: Host game makes a 5-character room code, your friend opens the same URL and joins with that code &middot; per turn: place 1 wall or 1 spawner (deleting is free, deleting your own build lets you rebuild), End turn = the button in the bar at the bottom &middot; pushing balls is off in multiplayer (worlds stay identical) &middot; the Global settings sync to the other player (except the Local ones: voices, steal, wall color) &middot; your Wall color (Local) paints the walls you place, on both screens &middot; on small screens the turn bar hops above the selection panel so Delete stays reachable</div>
+  <div id="hint">PC: double click = place spawner (any mode) &middot; drag = draw wall &middot; drag on/near a ball = push it &middot; right click = delete wall/spawner under cursor &middot; hold right + move = pan camera &middot; scroll = zoom &middot; click = select &middot; touch: long press = place spawner, double tap = re-drop balls, two fingers = pan, pinch = zoom &middot; fully zoomed out = whole field in view &middot; Spawner = Synth or Sampler (record + start point, or FM with 4 modulators) &middot; Settings: scale + root + octaves + field width/height + voices/steal &middot; Pitch = position on the canvas (center = A4, full field height = set octaves, zoom-stable) &middot; zooming in: only balls in view make sound, with a short fade just off-screen (beyond it silent, no voice slot); fully zoomed out you hear everything &middot; sound pans with the collision spot (max 75%) &middot; Multiplayer: Host game makes a 5-character room code, your friend opens the same URL and joins with that code &middot; per turn: place 1 wall or 1 spawner (deleting is free, deleting your own build lets you rebuild), End turn = the button in the bar at the bottom &middot; pushing balls is off in multiplayer (worlds stay identical) &middot; the Global settings sync to the other player (except the Local ones: voices, steal, wall color) &middot; your Wall color (Local) paints the walls you place, on both screens &middot; on small screens the turn bar hops above the selection panel so Delete stays reachable</div>
   </div>
 </div>
 
@@ -210,8 +210,12 @@
      uitgezoomd zie je het HELE
      speelveld (de grens past zich aan het vensterformaat aan);
      met Camera reset ga je terug naar het midden
-   - botsingen buiten beeld klinken zachter als je inzoomt (max -8 dB
-     bij volledig ingezoomd, 0 dB volledig uitgezoomd, vloeiend ertussen)
+   - alleen botsingen IN beeld klinken: inzoomen focust het geluid
+     op wat je ziet; net buiten de beeldrand zit een korte fall-off
+     zone zodat een geluid niet abrupt verdwijnt, en daarbuiten wordt
+     een botsing helemáál niet afgespeeld (en telt ook niet als stem
+     in de pool); volledig uitgezoomd klinkt alles en doet de
+     stem-diefstal zijn werk
    - elke toon pant mee met de plek van de botsing op het scherm,
      maximaal 75% links of rechts
    - alles wat botst maakt geluid via een ADR-synth (WebAudio), met
@@ -265,9 +269,9 @@
      eigen beurt; haal je je eigen bouwsel van die beurt weg, dan
      komt de bouw-actie terug. Spawner-instellingen (sliders, FM, golf)
      gaan binnen ~0,5 s mee naar de ander, en de host stuurt elke
-     2 s een compacte bal-status als drift-correctie (verschillen in
+     0,5 s een compacte bal-status als drift-correctie (verschillen in
      framerate/afronding groeien zo niet uit tot echte desync). Die
-     correctie wordt niet meer hard toegepast maar zacht over ~1 s
+     correctie wordt niet meer hard toegepast maar zacht over ~0,5 s
      uitgesmeerd: geen zichtbare sprongen of terug-schieten van
      ballen. Ook de bal-status reist mee met het world-bericht: een
      gast die midden in een draaiende sessie instapt begint exact op
@@ -870,6 +874,10 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   if (!audioCtx) return;
   if (audioCtx.state === "suspended") audioCtx.resume();
   const t = audioCtx.currentTime;
+  // buiten beeld (voorbij de fall-off zone): niet afspelen en geen
+  // voice-slot pakken; de rate-limit blijft ook onaangeroerd
+  const view = offscreenAtten(ball ? ball.x : 0, ball ? ball.y : 0);
+  if (view <= 0) return;
   if (t - lastToneTime < 0.025) return;         // rate-limit
   lastToneTime = t;
 
@@ -911,8 +919,8 @@ function collisionTone(impactSpeed, freq, pitchMul, ball) {
   // volledige snelheid = 0 dB, kruipende bal = de ingestelde diepte
   const velDb = sp && sp.velDb !== undefined ? sp.velDb : synth.velDepthDb;
   const velGain = Math.pow(10, velDb * (1 - vel) / 20);
-  // volume per spawner, gedempt als de botsing buiten beeld is (zoom-afhankelijk)
-  const peak = BASE_LEVEL * velGain * MASTER * vol * offscreenAtten(ball.x, ball.y);
+  // volume per spawner, geculd/gedempt als de botsing buiten beeld is
+  const peak = BASE_LEVEL * velGain * MASTER * vol * view;
   gain.gain.setValueAtTime(0.0001, t);
   gain.gain.linearRampToValueAtTime(peak, t + atk);
   gain.gain.setTargetAtTime(SUSTAIN * peak, t + atk, dcy);
@@ -1239,20 +1247,21 @@ function ndcOf(x, y) {
   return [cx / (w * TANH * aspect), cy / (w * TANH)];
 }
 
-/* Buiten-beeld-demping: hoe verder je inzoomt, hoe zachter botsingen
- * klinken die je niet meer ziet (volledig uitgezoomd = 0 dB verschil,
- * volledig ingezoomd = -8 dB). Schaalt logaritmisch mee met de zoom en
- * vloeiend over de beeldrand (15% NDC fade-zone). */
-const OFFSCREEN_DB = 8;
+/* Buiten-beeld-filter: alleen botsingen die op het scherm vallen
+ * klinken. Inzoomen focust het geluid op wat je ziet; net buiten de
+ * beeldrand zit een korte fall-off zone (15% NDC) zodat een geluid
+ * nooit abrupt verdwijnt, en dáárachter wordt de botsing helemáál
+ * niet meer afgespeeld (en bezet dus ook geen stem in de pool).
+ * Volledig uitgezoomd is het hele veld in beeld en klinkt alles,
+ * met stem-diefstal als vangnet. */
+const OFFSCREEN_FADE = 0.15;    // breedte van de fall-off zone in NDC
 function offscreenAtten(x, y) {
   if (!camAxis) return 1;
   const nd = ndcOf(x, y);
   const out = nd === null ? Infinity : Math.max(Math.abs(nd[0]), Math.abs(nd[1]));
-  const edge = Math.max(0, Math.min(1, (out - 1) / 0.15));   // 0 in beeld, 1 buiten
-  const MD = maxCamDist();   // dynamisch: heel veld zichtbaar = maximale uitzoom
-  const zoomFrac = Math.max(0, Math.min(1, Math.log(MD / cam.distance) / Math.log(MD / CAM_MIN_DIST)));
-  const db = -OFFSCREEN_DB * edge * zoomFrac;
-  return Math.pow(10, db / 20);
+  if (out <= 1) return 1;                          // in beeld: volle sterkte
+  if (out >= 1 + OFFSCREEN_FADE) return 0;         // ver buiten beeld: géén stem
+  return 1 - (out - 1) / OFFSCREEN_FADE;           // fall-off: snel uitfaden
 }
 
 /* ------------------------------------------------- input & modi */
@@ -1701,8 +1710,8 @@ wcUpdate();
  * verwijderen mag alleen tijdens je eigen beurt (knop End turn);
  * spawner-instellingen (sliders, FM, golfvorm) gaan binnen ~0,5 s
  * naar de ander; de global settings (behalve de lokale voices/steal)
- * gaan binnen ~0,25 s mee; de host stuurt elke 2 s een compacte
- * bal-status als drift-correctie, die de gast zacht over ~1 s
+ * gaan binnen ~0,25 s mee; de host stuurt elke 0,5 s een compacte
+ * bal-status als drift-correctie, die de gast zacht over ~0,5 s
  * uitstreekt (geen sprongen); bij binnenkomst reist de bal-status
  * mee met het world-bericht zodat je zonder glitch instapt.
  * Ballen duwen staat in multiplayer uit (werelden gelijk houden) en
@@ -1968,8 +1977,8 @@ function mpFrameTick(now) {
     mpGsetDirty.clear();
     mpSend({ t: "gset", s: s });
   }
-  // host = de baas over de ballen: elke 2 s de compacte bal-status
-  if (mpRole === "host" && now - mpLastSync > 2000) {
+  // host = de baas over de ballen: elke 0,5 s de compacte bal-status
+  if (mpRole === "host" && now - mpLastSync > 500) {
     mpLastSync = now;
     mpSend(mpBuildSync());
   }
@@ -2642,10 +2651,10 @@ function frame() {
 
   stepPhysics(dt);
   // multiplayer: openstaande drift-correcties zacht uitsmeren over
-  // ~0,7 s (exponentieel), zodat een correctie nooit als sprong of
+  // ~0,5 s (exponentieel), zodat een correctie nooit als sprong of
   // "terugschieten" zichtbaar is; solo blijft deze stap gratis leeg
   if (mpConn) {
-    const kf = 1 - Math.exp(-dt / 0.35);
+    const kf = 1 - Math.exp(-dt / 0.25);
     for (const b of balls) {
       if (!b.active || (!b.mpCx && !b.mpCy)) continue;
       b.x += b.mpCx * kf; b.y += b.mpCy * kf;

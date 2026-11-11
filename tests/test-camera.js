@@ -62,3 +62,63 @@ t("camera-reset zet mikpunt + afstand terug (en blijft haaks)", () => {
   near(c[0], camTarget[0], 1e-6, "nog steeds haaks na reset");
   near(c[1], camTarget[1], 1e-6, "nog steeds haaks na reset");
 });
+
+t("audio-filter: in beeld = vol, fall-off aan de rand, stil daarbuiten", () => {
+  pump(2);
+  const c = planePoint(innerWidth / 2, innerHeight / 2);
+  near(offscreenAtten(c[0], c[1]), 1, 1e-6, "midden in beeld = volle sterkte");
+  // volledig uitgezoomd: de veldhoeken zijn in beeld en dus hoorbaar
+  cam.distance = maxCamDist();
+  syncCamera();
+  near(offscreenAtten(fieldHalfX, fieldHalfY), 1, 1e-6, "veldhoek hoorbaar bij volledige uitzoom");
+  // volledig ingezoomd: midden hoort, ver buiten beeld zwijgt helemaal
+  cam.distance = CAM_MIN_DIST;
+  syncCamera();
+  near(offscreenAtten(c[0], c[1]), 1, 1e-6, "midden ook ingezoomd hoorbaar");
+  eq(offscreenAtten(c[0] + 60, c[1]), 0, "ver buiten beeld = 0 (geen stem)");
+  // net buiten de rand: deels gedempt in de fall-off zone
+  let band = null;
+  for (let d = 0.05; d < 20; d += 0.05) {
+    const nd = ndcOf(c[0], c[1] + d);
+    if (!nd) continue;
+    const out = Math.max(Math.abs(nd[0]), Math.abs(nd[1]));
+    if (out > 1.02 && out < 1.12) { band = [c[0], c[1] + d]; break; }
+  }
+  ok(band, "een punt in de fall-off zone gevonden");
+  const a = offscreenAtten(band[0], band[1]);
+  ok(a > 0 && a < 1, "fall-off dempt gedeeltelijk (" + a.toFixed(2) + ")");
+  clickEl("btnCamReset");
+  syncCamera();
+});
+
+t("audio-culling: buiten beeld géén stem-slot, in beeld en in de fall-off wél", () => {
+  pump(2);
+  ensureAudio();
+  cam.distance = CAM_MIN_DIST;
+  syncCamera();
+  const c = planePoint(innerWidth / 2, innerHeight / 2);
+  const n0 = activeVoices.length;
+  // ver buiten beeld: géén stem, en de rate-limit blijft onaangeroerd
+  eq(offscreenAtten(c[0] + 60, c[1]), 0, "punt ver buiten beeld");
+  collisionTone(5, 440, 1, { x: c[0] + 60, y: c[1], vol: 1, spId: 0 });
+  eq(activeVoices.length, n0, "buiten beeld start géén stem");
+  // in beeld: wél een stem
+  lastToneTime = -1;                        // rate-limit buiten werking voor de test
+  collisionTone(5, 440, 1, { x: c[0], y: c[1], vol: 1, spId: 0 });
+  eq(activeVoices.length, n0 + 1, "in beeld start een stem");
+  // in de fall-off zone start óók een stem (iets zachter)
+  lastToneTime = -1;
+  let band = null;
+  for (let d = 0.05; d < 20; d += 0.05) {
+    const nd = ndcOf(c[0], c[1] + d);
+    if (!nd) continue;
+    const out = Math.max(Math.abs(nd[0]), Math.abs(nd[1]));
+    if (out > 1.02 && out < 1.12) { band = [c[0], c[1] + d]; break; }
+  }
+  ok(band, "punt in de fall-off zone");
+  const n1 = activeVoices.length;
+  collisionTone(5, 440, 1, { x: band[0], y: band[1], vol: 1, spId: 0 });
+  eq(activeVoices.length, n1 + 1, "in de fall-off start ook een stem");
+  clickEl("btnCamReset");
+  syncCamera();
+});
